@@ -131,7 +131,8 @@ function scheduleBots(room, delay) {
   if (room.botTimer || (g.phase !== 'setup' && g.phase !== 'play')) return;
   const cur = g.current();
   const botTurn = cur && cur.bot;
-  const botCanAccept = g.offer && g.players.some(p => p.bot && p.id !== g.offer.from);
+  const botCanAccept = (g.offer && g.players.some(p => p.bot && p.id !== g.offer.from))
+    || (g.portOffers || []).some(o => g.players.some(p => p.bot && p.id !== o.from && g.hasPort(p)));
   if (!botTurn && !botCanAccept) return;
   if (delay == null) {
     // po hode počkaj, kým u hráčov dobehne animácia kociek
@@ -155,6 +156,13 @@ function botStep(room) {
     if (g.offer) {
       const taker = g.players.find(p => p.bot && bot.wantsOffer(g, p));
       if (taker) { g.act(taker.id, { type: 'acceptOffer' }); return broadcast(room); }
+    }
+    if (g.phase === 'play') {
+      for (const p of g.players) {
+        if (!p.bot) continue;
+        const o = bot.wantsPortOffer(g, p);
+        if (o) { g.act(p.id, { type: 'portAccept', id: o.id }); return broadcast(room); }
+      }
     }
     if (!cur || !cur.bot) return;
     room.botMem ||= {};

@@ -73,6 +73,9 @@ otvoriť `http://<IP-tvojho-počítača>:3000`.
 - **Banditi:** začínajú v horách (na baníckom poli). Keď je súčet oboch kociek 7, hráč na ťahu
   ich môže presunúť na ľubovoľnú odkrytú pevninu alebo nechať na mieste. Pole s banditmi nič neprodukuje.
 - **Stavby** (jedna na políčko): Tábor 1 b., Mesto 2 b., Maják 1 b. (na pobreží, výmena 3:1, ochrana pred pirátmi).
+- **Prístav** (2 drevo, ruda, obilie): na pobrežnej stavbe, 1 b., max. 2. Hráči s prístavom si
+  môžu posielať **námorné ponuky kedykoľvek, aj mimo svojho ťahu**. Ponuka platí jedno celé kolo,
+  každý hráč môže mať naraz jednu a prijať ju môže len hráč s prístavom.
 - **Výprava:** odkryje zahalené políčko vedľa tvojej stavby. Najviac objavov (aspoň 3) = Veľký objaviteľ (+2 b.).
 - **Zákazky:** odovzdaj suroviny za 1–2 body.
 - **Obchod:** s bankou alebo ponukou ostatným hráčom.

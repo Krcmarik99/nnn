@@ -209,3 +209,56 @@ test('banditi sa dajú nechať na mieste a forceSkip ich vyrieši', () => {
   assert.strictEqual(g.pendingBandits, false);
   assert.notStrictEqual(g.current().id, p.id);
 });
+
+test('prístavy: stavba na pobreží, obchod mimo ťahu, platnosť jedno kolo', () => {
+  const { g } = setupGame(3);
+  const [a, b, c] = g.players;
+  // každému daj prístav na pobrežnú stavbu (pre test priamo)
+  const givePort = p => {
+    const k = Object.keys(g.hexes).find(k => g.hexes[k].building && g.hexes[k].building.owner === p.id);
+    g.hexes[k].port = true;
+  };
+  // stavba cez akciu
+  const cur = g.current();
+  roll(g, cur);
+  RES.forEach(r => { cur.res[r] = 5; });
+  const coast = Object.keys(g.hexes).find(k => g.hexes[k].building && g.hexes[k].building.owner === cur.id && g.isCoastal(g.hexes[k]));
+  if (coast) {
+    const vp = g.vp(cur);
+    g.act(cur.id, { type: 'build', kind: 'port', hex: coast });
+    assert.strictEqual(g.vp(cur), vp + 1);
+    assert.throws(() => g.act(cur.id, { type: 'build', kind: 'port', hex: coast }), /už prístav/);
+  }
+  [a, b, c].forEach(p => { if (!g.hasPort(p)) givePort(p); });
+
+  // hráč, ktorý NIE JE na ťahu, pošle námornú ponuku
+  const off = g.players.find(p => p !== g.current());
+  const other = g.players.find(p => p !== off);
+  off.res = { drevo: 3, kamen: 0, ruda: 0, obilie: 0, sol: 0 };
+  other.res = { drevo: 0, kamen: 0, ruda: 0, obilie: 0, sol: 2 };
+  g.act(off.id, { type: 'portOffer', give: { drevo: 2 }, want: { sol: 1 } });
+  assert.strictEqual(g.portOffers.length, 1);
+  const id = g.portOffers[0].id;
+  g.act(other.id, { type: 'portAccept', id });
+  assert.deepStrictEqual([off.res.drevo, off.res.sol, other.res.drevo, other.res.sol], [1, 1, 2, 1]);
+  assert.strictEqual(g.portOffers.length, 0);
+
+  // bez prístavu sa nedá ani ponúknuť, ani prijať
+  const noPort = new Game();
+  noPort.addPlayer('X'); noPort.addPlayer('Y'); noPort.start(12);
+  while (noPort.phase === 'setup') noPort.forceSkip();
+  const x = noPort.players[0];
+  x.res.drevo = 2;
+  assert.throws(() => noPort.act(x.id, { type: 'portOffer', give: { drevo: 1 }, want: { sol: 1 } }), /prístav/);
+
+  // ponuka vyprší po jednom celom kole
+  off.res.drevo = 5;
+  g.act(off.id, { type: 'portOffer', give: { drevo: 1 }, want: { sol: 1 } });
+  for (let i = 0; i < g.players.length; i++) {
+    const p = g.current();
+    if (!g.rolled) roll(g, p);
+    assert.strictEqual(g.portOffers.length, 1, 'ešte platí po ' + i + ' ťahoch');
+    g.act(p.id, { type: 'endTurn' });
+  }
+  assert.strictEqual(g.portOffers.length, 0);
+});
