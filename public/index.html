@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Súostrovie</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="toast" hidden></div>
+
+<!-- Úvod -->
+<section id="home" class="screen">
+  <div class="card narrow">
+    <h1>🏝️ Súostrovie</h1>
+    <p class="muted">Objavuj ostrovy, obchoduj s kamarátmi a stavaj. 2–5 hráčov.</p>
+    <label>Tvoje meno <input id="name" maxlength="20" placeholder="napr. Tadeáš"></label>
+    <button id="btnCreate" class="primary">Vytvoriť párty</button>
+    <div class="or">alebo</div>
+    <label>Kód párty <input id="code" maxlength="5" placeholder="ABCDE" style="text-transform:uppercase"></label>
+    <button id="btnJoin">Pripojiť sa</button>
+    <details class="rules">
+      <summary>Pravidlá</summary>
+      <div id="rulesText"></div>
+    </details>
+  </div>
+</section>
+
+<!-- Lobby -->
+<section id="lobby" class="screen" hidden>
+  <div class="card narrow">
+    <h2>Párty <span id="lobbyCode" class="code"></span></h2>
+    <p class="muted">Pošli kamarátom kód alebo odkaz:</p>
+    <div class="row"><input id="shareLink" readonly><button id="btnCopy">Kopírovať</button></div>
+    <h3>Hráči</h3>
+    <ul id="lobbyPlayers" class="plist"></ul>
+    <div id="hostControls">
+      <label>Body na výhru
+        <select id="target"><option>10</option><option selected>12</option><option>14</option><option>16</option></select>
+      </label>
+      <button id="btnStart" class="primary">Spustiť hru</button>
+    </div>
+    <p id="waitHost" class="muted">Čaká sa, kým zakladateľ spustí hru…</p>
+    <button id="btnLeave" class="ghost">Odísť</button>
+  </div>
+</section>
+
+<!-- Hra -->
+<section id="game" class="screen" hidden>
+  <div class="layout">
+    <div class="boardWrap">
+      <div id="status" class="status"></div>
+      <svg id="board" viewBox="0 0 100 100"></svg>
+      <div id="legend" class="legend"></div>
+    </div>
+    <aside class="side">
+      <div class="panel" id="playersPanel"></div>
+      <div class="panel" id="myPanel"></div>
+      <div class="panel" id="actionsPanel"></div>
+      <div class="panel" id="tradePanel"></div>
+      <div class="panel" id="contractsPanel"></div>
+      <div class="panel">
+        <h3>Denník a chat</h3>
+        <div id="log" class="log"></div>
+        <form id="chatForm" class="row"><input id="chatInput" maxlength="200" placeholder="Napíš správu…"><button>➤</button></form>
+      </div>
+      <details class="panel rules"><summary>Pravidlá</summary><div id="rulesText2"></div></details>
+    </aside>
+  </div>
+</section>
+
+<script src="client.js"></script>
+</body>
+</html>
