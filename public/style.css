@@ -104,3 +104,41 @@ button.active { outline: 2px solid var(--accent); }
 .banner { background: var(--accent); color: #1a1a1a; border-radius: 10px; padding: 12px; font-weight: 600; text-align: center; }
 .event { background: #5b2a86; border-radius: 10px; padding: 8px 12px; font-size: .85rem; }
 a { color: var(--accent); }
+
+/* ---------- zvuk a kocky ---------- */
+.boardWrap { position: relative; }
+.status { padding-right: 52px; }
+.mute { position: absolute; top: 6px; right: 6px; padding: 6px 9px; font-size: 1.1rem; background: transparent; border-color: transparent; }
+.boardArea { position: relative; }
+#diceOverlay {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; background: radial-gradient(circle, #0f1c2bcc 0%, #0f1c2b55 55%, transparent 75%);
+  transition: opacity .4s; cursor: pointer; z-index: 5;
+}
+#diceOverlay[hidden] { display: none; }
+#diceOverlay.fade { opacity: 0; }
+.dice { display: flex; gap: 22px; }
+.die {
+  width: 72px; height: 72px; border-radius: 14px; padding: 9px;
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); place-items: center;
+  background: linear-gradient(145deg, #ffffff, #e6dfcf); box-shadow: 0 10px 24px #000a, inset 0 -4px 0 #0002;
+}
+.die.ev { background: linear-gradient(145deg, #b388eb, #6c3fb5); }
+.die i { width: 13px; height: 13px; border-radius: 50%; }
+.die i.pip { background: radial-gradient(circle at 35% 35%, #555, #111); }
+.die.ev i.pip { background: radial-gradient(circle at 35% 35%, #fff, #ddd); }
+.rolling .die.prod { animation: tumble .45s linear infinite, hop .3s ease-in-out infinite alternate; }
+.rolling .die.ev { animation: tumble .38s linear infinite reverse, hop .27s ease-in-out infinite alternate; }
+.landed .die { animation: land .45s cubic-bezier(.3,1.6,.5,1); }
+.ev1 .die.ev { box-shadow: 0 0 0 4px #ff5d5d, 0 0 30px #ff5d5d; }
+.ev6 .die.ev { box-shadow: 0 0 0 4px #f2a541, 0 0 30px #f2a541; }
+.cap { background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; font-weight: 600; }
+@keyframes tumble { from { transform: rotate(0) } to { transform: rotate(360deg) } }
+@keyframes hop { from { translate: 0 0 } to { translate: 0 -22px } }
+@keyframes land { 0% { transform: scale(1.35) rotate(-12deg) } 100% { transform: scale(1) rotate(0) } }
+.token.pop { animation: tokenPop .9s ease-out 2; transform-box: fill-box; transform-origin: center; }
+@keyframes tokenPop { 0%,100% { transform: scale(1) } 40% { transform: scale(1.45) } }
+@media (prefers-reduced-motion: reduce) {
+  .rolling .die, .landed .die, .token.pop, .hl { animation: none !important; }
+}
+#board { display: block; }
