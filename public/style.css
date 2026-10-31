@@ -165,3 +165,7 @@ select.lvl + button.small { margin-left: 0; }
 .devcard .cost { color: var(--muted); font-size: .75rem; }
 #cardsPanel[hidden] { display: none; }
 .prow .nm small.stats { display: block; white-space: normal; line-height: 1.5; }
+
+.rate { white-space: nowrap; }
+.rate.good { color: #7ee2a8; font-weight: 600; }
+.rate.best { color: #f2a541; font-weight: 700; }

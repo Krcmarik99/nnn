@@ -36,7 +36,7 @@ const RULES = `
   <li>🏰 <b>Mesto</b> (2 ruda, 2 obilie, soľ) – vylepší tábor, 2 body a dvojitá produkcia. Max. 4.</li>
   <li>🗼 <b>Maják</b> (2 kameň, drevo, soľ) – na pobrežnej stavbe, 1 bod, výmena s bankou 3:1 a ochrana pred pirátmi. Max. 3.</li>
   </ul></li>
-<li>⚓ <b>Prístav</b> (2 drevo, ruda, obilie) – na pobrežnej stavbe, 1 bod. Max. 2. Hráči s prístavom si môžu posielať <b>námorné ponuky kedykoľvek</b>, aj mimo svojho ťahu. Ponuka platí jedno celé kolo a prijať ju môže len hráč s prístavom.</li>
+<li>⚓ <b>Prístav</b> (2 drevo, ruda, obilie) – na pobrežnej stavbe, 1 bod. Max. 2. S bankou meníš <b>2:1 surovinu poľa, na ktorom prístav stojí</b>. Hráči s prístavom si môžu posielať <b>námorné ponuky kedykoľvek</b>, aj mimo svojho ťahu. Ponuka platí jedno celé kolo a prijať ju môže len hráč s prístavom.</li>
 <li>⚔️ <b>Vojaci</b> (ruda, obilie): kto má najviac vojakov (aspoň 3), má <b>Najväčšie vojsko</b> a <b>+2 body</b>. Titul prevezme len hráč s väčším vojskom. Aspoň 2 vojaci chránia pred pirátmi. S aspoň 1 vojakom môžeš raz za ťah <b>vyhnať banditov</b> zo svojho poľa späť do hôr.</li>
 <li>🛤️ <b>Najdlhšia cesta</b>: tvoje stavby na susedných poliach tvoria cestu. Kto má najdlhšiu reťaz stavieb za sebou (aspoň 4), získa <b>+2 body</b>. Titul prevezme len hráč s dlhšou cestou.</li>
 <li>🎴 <b>Rozvojové karty</b> (obilie, ruda, soľ): kúpiš náhodnú kartu z balíčka. Zahrať ju môžeš po hode, najskôr v ďalšom ťahu, a len jednu za ťah. Karty: 🗺️ Mapa pokladu, 🛒 Kupec, 🌾 Bohatá úroda, 🔨 Stavitelia, 🏴‍☠️ Pašeráci, 📜 Kráľovská listina, 🧭 Lodný kompas.</li>
@@ -705,9 +705,12 @@ function renderTrade() {
   }
   if (active) {
     const opts = sel => RES.map(r => `<option value="${r}" ${r === sel ? 'selected' : ''}>${RES_ICON[r]} ${RES_NAMES[r]}</option>`).join('');
-    html += `<p class="muted" style="margin:8px 0 4px">S bankou ${S.bankRate}:1</p>
-      <div class="row"><select id="bankGive">${opts(bankGive)}</select><span style="align-self:center">➜</span>
-      <select id="bankGet">${opts(bankGet)}</select><button id="btnBank">Vymeniť</button></div>`;
+    const rates = S.bankRates || Object.fromEntries(RES.map(r => [r, S.bankRate]));
+    const rateOpts = sel => RES.map(r => `<option value="${r}" ${r === sel ? 'selected' : ''}>${RES_ICON[r]} ${RES_NAMES[r]}</option>`).join('');
+    html += `<p class="muted" style="margin:8px 0 4px">S bankou – kurz: ${RES.map(r =>
+        `<span class="rate${rates[r] === 2 ? ' best' : rates[r] === 3 ? ' good' : ''}" title="${rateWhy(rates[r], r)}">${RES_ICON[r]} ${rates[r]}:1</span>`).join(' ')}</p>
+      <div class="row"><select id="bankGive">${rateOpts(bankGive)}</select><span style="align-self:center">➜</span>
+      <select id="bankGet">${opts(bankGet)}</select><button id="btnBank">Vymeniť ${rates[bankGive]}:1</button></div>`;
     if (!S.offer) {
       html += `<p class="muted" style="margin:10px 0 4px">Ponuka hráčom</p><div class="tradeGrid"><span></span>
         ${RES.map(r => `<span style="text-align:center">${RES_ICON[r]}</span>`).join('')}
@@ -739,7 +742,7 @@ function renderTrade() {
   if ($('btnAccept')) $('btnAccept').onclick = () => act({ type: 'acceptOffer' });
   if ($('btnCancelOffer')) $('btnCancelOffer').onclick = () => act({ type: 'cancelOffer' });
   if ($('btnBank')) {
-    $('bankGive').onchange = e => { bankGive = e.target.value; };
+    $('bankGive').onchange = e => { bankGive = e.target.value; renderTrade(); };
     $('bankGet').onchange = e => { bankGet = e.target.value; };
     $('btnBank').onclick = () => act({ type: 'bankTrade', give: bankGive, get: bankGet });
   }
@@ -752,6 +755,12 @@ function renderTrade() {
 }
 
 let portDraft = { give: {}, want: {} };
+
+function rateWhy(rate, r) {
+  if (rate === 2) return S.market ? 'Trhový deň / Kupec' : 'tvoj prístav na poli s touto surovinou';
+  if (rate === 3) return 'maják';
+  return 'bežný kurz';
+}
 
 function renderPortTrade() {
   const mine = me();

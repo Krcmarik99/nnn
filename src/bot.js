@@ -113,7 +113,16 @@ function options(g, p) {
   if (g.count(p.id, 'port') < LIMITS.port) {
     const coast = entries(g).filter(([, h]) => own(h, p) && !h.port && g.isCoastal(h));
     const ports = g.count(p.id, 'port');
-    if (coast.length) opts.push({ action: { type: 'build', kind: 'port', hex: coast[0][0] }, cost: COSTS.port, pri: ports ? 1.8 : lv(p).valueAware ? 0.6 : 0.9 });
+    if (coast.length) {
+      // ťažký bot dá prístav na pole so surovinou, ktorú produkuje najviac (dostane na ňu kurz 2:1)
+      const have = g.portResources(p);
+      const prod = r => entries(g).filter(([, h]) => own(h, p) && TERRAIN_RES[h.terrain] === r)
+        .reduce((a, [, h]) => a + (h.building.type === 'town' ? 2 : 1), 0);
+      const [k] = lv(p).valueAware
+        ? best(coast, ([, h]) => (have.has(TERRAIN_RES[h.terrain]) ? -5 : 0) + prod(TERRAIN_RES[h.terrain]))
+        : coast[0];
+      opts.push({ action: { type: 'build', kind: 'port', hex: k }, cost: COSTS.port, pri: ports ? 1.8 : lv(p).valueAware ? 0.6 : 0.9 });
+    }
   }
   if ((p.soldiers || 0) < SOLDIER_MAX) {
     const mine = p.soldiers || 0;
@@ -260,8 +269,9 @@ function decide(g, p, mem) {
     const need = gl.cost;
     const spare = r => p.res[r] - (need[r] || 0);
     const lacking = RES.filter(r => p.res[r] < (need[r] || 0));
-    const rate = g.bankRate(p);
-    const surplus = RES.filter(r => spare(r) >= rate).sort((a, b) => spare(b) - spare(a));
+    // najprv suroviny s najlepším kurzom, potom tie, ktorých je najviac navyše
+    const surplus = RES.filter(r => spare(r) >= g.bankRate(p, r))
+      .sort((a, b) => g.bankRate(p, a) - g.bankRate(p, b) || spare(b) - spare(a));
     if (lacking.length && surplus.length && g.cards(p) >= L.tradeMinCards) return { type: 'bankTrade', give: surplus[0], get: lacking[0] };
 
     if (lacking.length && !mem.offered) {
@@ -281,10 +291,9 @@ function decide(g, p, mem) {
 
   // 3) Ochrana pred búrkou – zníž počet kariet
   if (L.stormGuard && g.cards(p) > STORM_LIMIT) {
-    const rate = g.bankRate(p);
     const most = best(RES, r => p.res[r]);
     const least = best(RES, r => -p.res[r]);
-    if (p.res[most] >= rate && most !== least) return { type: 'bankTrade', give: most, get: least };
+    if (p.res[most] >= g.bankRate(p, most) && most !== least) return { type: 'bankTrade', give: most, get: least };
   }
   return { type: 'endTurn' };
 }

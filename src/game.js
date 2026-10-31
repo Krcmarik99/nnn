@@ -320,9 +320,25 @@ class Game {
     return lost;
   }
 
-  bankRate(p) {
+  // Kurz výmeny s bankou pre danú surovinu (bez suroviny = všeobecný kurz)
+  bankRate(p, give = null) {
     if (this.market && this.current() === p) return 2;
+    if (give && this.portResources(p).has(give)) return 2;
     return this.count(p.id, 'lighthouse') > 0 ? 3 : 4;
+  }
+
+  // Suroviny, ktoré hráč mení 2:1 vďaka prístavom (surovina poľa s prístavom)
+  portResources(p) {
+    const out = new Set();
+    for (const k in this.hexes) {
+      const h = this.hexes[k];
+      if (h.port && h.building && h.building.owner === p.id) out.add(TERRAIN_RES[h.terrain]);
+    }
+    return out;
+  }
+
+  bankRates(p) {
+    return Object.fromEntries(RES.map(r => [r, this.bankRate(p, r)]));
   }
 
   // Najdlhšia reťaz vlastných stavieb na susedných poliach (bez opakovania poľa)
@@ -645,7 +661,7 @@ class Game {
 
   bankTrade(p, give, get) {
     if (!RES.includes(give) || !RES.includes(get) || give === get) throw new GameError('Neplatná výmena.');
-    const rate = this.bankRate(p);
+    const rate = this.bankRate(p, give);
     this.pay(p, { [give]: rate });
     this.gain(p, get);
     this.addLog(`${p.name} mení s bankou ${rate}× ${RES_NAMES[give]} za 1× ${RES_NAMES[get]}.`);
@@ -921,6 +937,7 @@ class Game {
       pendingBandits: !!this.pendingBandits,
       winner: this.winner,
       bankRate: me ? this.bankRate(me) : 4,
+      bankRates: me ? this.bankRates(me) : null,
       contracts: this.openContracts.map(id => CONTRACTS.find(c => c.id === id)),
       contractsLeft: this.contractDeck.length,
       hexes: Object.entries(this.hexes).map(([k, h]) => ({
