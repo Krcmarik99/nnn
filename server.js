@@ -7,10 +7,12 @@ const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const { Game, GameError } = require('./src/game');
 const bot = require('./src/bot');
+const { createStorage } = require('./src/storage');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC = path.join(__dirname, 'public');
-const ROOM_TTL = 3 * 60 * 60 * 1000; // neaktívne párty sa zmažú po 3 hodinách
+const ROOM_TTL = 7 * 24 * 60 * 60 * 1000; // neaktívne párty sa zmažú po 7 dňoch
+const SAVE_INTERVAL = 2000;
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml' };
 
 // ---------- statické súbory ----------
@@ -34,6 +36,66 @@ const server = http.createServer((req, res) => {
 /** code -> { code, game, host, tokens: Map(token->pid), sockets: Map(pid->Set(ws)), lastActive } */
 const rooms = new Map();
 
+// ---------- ukladanie ----------
+const storage = createStorage();
+const dirty = new Set();
+let flushing = null;
+let storageOk = false;
+
+function roomData(room) {
+  return {
+    code: room.code,
+    host: room.host,
+    tokens: [...room.tokens],
+    lastActive: room.lastActive,
+    seenRoll: room.seenRoll || null,
+    game: room.game.serialize(),
+  };
+}
+
+function restoreRoom(d) {
+  return {
+    code: d.code,
+    host: d.host,
+    tokens: new Map(d.tokens),
+    sockets: new Map(),
+    lastActive: d.lastActive || Date.now(),
+    seenRoll: d.seenRoll,
+    game: Game.restore(d.game),
+  };
+}
+
+function markDirty(code) {
+  dirty.add(code);
+}
+
+async function flush() {
+  if (!storageOk) return;
+  if (flushing) return flushing;
+  flushing = (async () => {
+    const codes = [...dirty];
+    dirty.clear();
+    for (const code of codes) {
+      const room = rooms.get(code);
+      try {
+        if (room) await storage.save(code, roomData(room));
+        else await storage.remove(code);
+      } catch (e) {
+        console.error('Ukladanie zlyhalo pre', code, '-', e.message);
+        dirty.add(code); // skúsi znova neskôr
+      }
+    }
+  })();
+  try { await flushing; } finally { flushing = null; }
+}
+
+function deleteRoom(code) {
+  const room = rooms.get(code);
+  if (room && room.botTimer) clearTimeout(room.botTimer);
+  rooms.delete(code);
+  markDirty(code);
+}
+
 function newCode() {
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let c;
@@ -52,6 +114,7 @@ function connected(room, pid) {
 
 function broadcast(room) {
   room.lastActive = Date.now();
+  markDirty(room.code);
   scheduleBots(room);
   for (const [pid, set] of room.sockets) {
     const state = room.game.view(pid);
@@ -204,7 +267,7 @@ function handle(ws, msg) {
         room.sockets.delete(ws.pid);
         const humans = g.players.filter(p => !p.bot);
         if (room.host === ws.pid && humans.length) room.host = humans[0].id;
-        if (!humans.length) rooms.delete(room.code);
+        if (!humans.length) deleteRoom(room.code);
         ws.room = null;
         send(ws, { t: 'left' });
         return broadcast(room);
@@ -248,7 +311,34 @@ setInterval(() => {
     ws.ping();
   }
   const now = Date.now();
-  for (const [code, room] of rooms) if (now - room.lastActive > ROOM_TTL) rooms.delete(code);
+  for (const [code, room] of rooms) if (now - room.lastActive > ROOM_TTL) deleteRoom(code);
 }, 30000).unref();
 
-server.listen(PORT, () => console.log(`Súostrovie beží na http://localhost:${PORT}`));
+setInterval(() => { if (dirty.size) flush(); }, SAVE_INTERVAL).unref();
+
+async function shutdown(sig) {
+  console.log(`${sig}: ukladám hry…`);
+  for (const room of rooms.values()) markDirty(room.code);
+  try { await flush(); await storage.close(); } catch (e) { console.error(e); }
+  process.exit(0);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+(async () => {
+  try {
+    await storage.init();
+    storageOk = true;
+    const saved = await storage.loadAll();
+    const now = Date.now();
+    for (const d of saved) {
+      if (!d || !d.code || !d.game) continue;
+      if (now - (d.lastActive || 0) > ROOM_TTL) { markDirty(d.code); continue; }
+      rooms.set(d.code, restoreRoom(d));
+    }
+    console.log(`Úložisko: ${storage.name}, obnovených hier: ${rooms.size}`);
+  } catch (e) {
+    console.error(`Úložisko (${storage.name}) nie je dostupné – hry sa nebudú ukladať:`, e.message);
+  }
+  server.listen(PORT, () => console.log(`Súostrovie beží na http://localhost:${PORT}`));
+})();
