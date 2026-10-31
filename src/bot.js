@@ -104,6 +104,11 @@ function options(g, p) {
     const coast = entries(g).filter(([, h]) => own(h, p) && !h.lighthouse && g.isCoastal(h));
     if (coast.length) opts.push({ action: { type: 'build', kind: 'lighthouse', hex: coast[0][0] }, cost: COSTS.lighthouse, pri: lights ? 1.5 : lv(p).valueAware ? 0.5 : 0.8 });
   }
+  if (g.count(p.id, 'port') < LIMITS.port) {
+    const coast = entries(g).filter(([, h]) => own(h, p) && !h.port && g.isCoastal(h));
+    const ports = g.count(p.id, 'port');
+    if (coast.length) opts.push({ action: { type: 'build', kind: 'port', hex: coast[0][0] }, cost: COSTS.port, pri: ports ? 1.8 : lv(p).valueAware ? 0.6 : 0.9 });
+  }
   const hidden = entries(g).filter(([, h]) => !h.revealed && g.adjacentToOwn(h, p.id));
   if (hidden.length) {
     const maxOther = Math.max(0, ...g.players.filter(o => o.id !== p.id).map(o => o.discoveries));
@@ -191,9 +196,12 @@ function decide(g, p, mem) {
       mem.offered = true;
       const extra = RES.filter(r => spare(r) >= 1).sort((a, b) => spare(b) - spare(a));
       if (extra.length) {
-        mem.offerAt = Date.now();
         const give = { [extra[0]]: spare(extra[0]) >= 3 && lacking.length === 1 && missing(p.res, need) >= 2 ? 2 : 1 };
         const want = { [lacking[0]]: Math.min(2, (need[lacking[0]] || 0) - p.res[lacking[0]]) };
+        // s prístavom pošle námornú ponuku, ktorá platí celé kolo
+        const mine = (g.portOffers || []).some(o => o.from === p.id);
+        if (g.hasPort(p) && !mine && Math.random() < 0.5) return { type: 'portOffer', give, want };
+        mem.offerAt = Date.now();
         return { type: 'offer', give, want };
       }
     }
@@ -210,9 +218,9 @@ function decide(g, p, mem) {
 }
 
 // Prijme bot aktuálnu ponuku?
-function wantsOffer(g, p) {
-  const o = g.offer;
+function wantsOffer(g, p, o = g.offer) {
   if (!o || o.from === p.id || g.phase !== 'play') return false;
+  if (o !== g.offer && !g.hasPort(p)) return false; // námorný obchod len s prístavom
   if (!g.canPay(p, o.want)) return false;
   const L = lv(p);
   const from = g.player(o.from);
@@ -233,10 +241,15 @@ function wantsOffer(g, p) {
   return now < before;
 }
 
+// Prvá námorná ponuka, ktorú by bot prijal
+function wantsPortOffer(g, p) {
+  return (g.portOffers || []).find(o => wantsOffer(g, p, o)) || null;
+}
+
 function botName(g) {
   const used = new Set(g.players.map(p => p.name));
   const free = BOT_NAMES.filter(n => !used.has('🤖 ' + n));
   return '🤖 ' + (free[Math.floor(Math.random() * free.length)] || 'Bot');
 }
 
-module.exports = { decide, wantsOffer, botName, missing, LEVELS, banditTarget };
+module.exports = { decide, wantsOffer, wantsPortOffer, botName, missing, LEVELS, banditTarget };

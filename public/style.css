@@ -154,3 +154,5 @@ select.lvl + button.small { margin-left: 0; }
 .bandit.drop { animation: banditDrop .6s cubic-bezier(.3,1.5,.5,1); transform-box: fill-box; }
 @keyframes banditDrop { 0% { opacity: 0; translate: 0 -30px; } 100% { opacity: 1; translate: 0 0; } }
 @media (prefers-reduced-motion: reduce) { .bandit.drop { animation: none; } }
+
+.offer.port { border-left: 3px solid #4f9bd9; }

@@ -12,6 +12,7 @@ const TERRAIN = {
   more: { name: 'More', color: '#3577b5' },
 };
 const COSTS = {
+  port: { drevo: 2, ruda: 1, obilie: 1 },
   camp: { drevo: 1, kamen: 1, obilie: 1 },
   town: { ruda: 2, obilie: 2, sol: 1 },
   lighthouse: { kamen: 2, drevo: 1, sol: 1 },
@@ -35,6 +36,7 @@ const RULES = `
   <li>🏰 <b>Mesto</b> (2 ruda, 2 obilie, soľ) – vylepší tábor, 2 body a dvojitá produkcia. Max. 4.</li>
   <li>🗼 <b>Maják</b> (2 kameň, drevo, soľ) – na pobrežnej stavbe, 1 bod, výmena s bankou 3:1 a ochrana pred pirátmi. Max. 3.</li>
   </ul></li>
+<li>⚓ <b>Prístav</b> (2 drevo, ruda, obilie) – na pobrežnej stavbe, 1 bod. Max. 2. Hráči s prístavom si môžu posielať <b>námorné ponuky kedykoľvek</b>, aj mimo svojho ťahu. Ponuka platí jedno celé kolo a prijať ju môže len hráč s prístavom.</li>
 <li>🧭 <b>Výprava</b> (drevo, obilie): odkry zahalené políčko vedľa svojej stavby. Ak je to pevnina, dostaneš 1 jej surovinu. Kto má najviac objavov (aspoň 3), je <b>Veľký objaviteľ</b> (+2 body).</li>
 <li>🦹 <b>Banditi</b> začínajú v horách (na baníckom poli). Keď je súčet oboch kociek <b>7</b>, hráč na ťahu ich môže presunúť na ľubovoľnú odkrytú pevninu (alebo nechať na mieste). Pole s banditmi nič neprodukuje.</li>
 <li>📜 <b>Zákazky:</b> tri sú vždy vyložené. Odovzdaj požadované suroviny a získaj 1–2 body.</li>
@@ -145,7 +147,7 @@ function applyState(next, prev, afterRoll) {
     if (sum(S, 'camps') + sum(S, 'towns') * 2 + sum(S, 'lighthouses') > sum(prev, 'camps') + sum(prev, 'towns') * 2 + sum(prev, 'lighthouses')) FX.sound('build');
     else if (sum(S, 'discoveries') > sum(prev, 'discoveries')) FX.sound('explore');
     else if (prev.bandits && S.bandits !== prev.bandits) FX.sound('bandits');
-    else if (S.log.at(-1) !== prev.log.at(-1) && S.log.at(-1).includes('prijíma obchod')) FX.sound('trade');
+    else if (S.log.at(-1) !== prev.log.at(-1) && /prijíma (námorný )?obchod/.test(S.log.at(-1))) FX.sound('trade');
   }
   const myTurnNow = st => st.current === st.me && (st.phase === 'play' || st.phase === 'setup');
   if (myTurnNow(S) && !myTurnNow(prev)) setTimeout(() => FX.sound('turn'), afterRoll ? 600 : 0);
@@ -269,7 +271,7 @@ function renderStatus() {
 }
 
 function modeName(m) {
-  return { place: 'tábor', camp: 'tábor', town: 'mesto', lighthouse: 'maják', explore: 'výprava' }[m];
+  return { place: 'tábor', camp: 'tábor', town: 'mesto', lighthouse: 'maják', port: 'prístav', explore: 'výprava' }[m];
 }
 
 function hexMap() {
@@ -293,6 +295,7 @@ function validHexes() {
     else if (m2 === 'camp') ok = land(h) && !h.building && adjOwn(h);
     else if (m2 === 'town') ok = own(h) && h.building.type === 'camp';
     else if (m2 === 'lighthouse') ok = own(h) && !h.lighthouse && h.coastal;
+    else if (m2 === 'port') ok = own(h) && !h.port && h.coastal;
     else if (m2 === 'explore') ok = !h.revealed && adjOwn(h);
     else if (m2 === 'bandits') ok = land(h) && h.k !== S.bandits;
     if (ok) out.add(h.k);
@@ -441,6 +444,19 @@ function townSvg(x, y, c) {
     <line x1="0" y1="-4" x2="0" y2="-16"/><path d="M0,-16 L9,-13 L0,-10Z"/>
   </g>`;
 }
+function portSvg(x, y, c) {
+  return `<g transform="translate(${x},${y})" stroke="#111" stroke-width="1">
+    <ellipse cx="1" cy="12" rx="12" ry="2.8" fill="#0006" stroke="none"/>
+    <rect x="-12" y="4" width="24" height="5" rx="1" fill="#8d5a2b"/>
+    <path d="M-9,9 v5 M-2,9 v5 M5,9 v5" stroke="#5b3a1e" stroke-width="2"/>
+    <g fill="none" stroke="${c}" stroke-width="2.6" stroke-linecap="round">
+      <path d="M0,-11 V3"/><path d="M-5,-6 H5"/><path d="M-7,-1 Q0,7 7,-1"/>
+    </g>
+    <g fill="none" stroke="#111" stroke-width=".8"><circle cx="0" cy="-13" r="2.6"/></g>
+    <circle cx="0" cy="-13" r="1.8" fill="none" stroke="${c}" stroke-width="1.6"/>
+  </g>`;
+}
+
 function lighthouseSvg(x, y, c) {
   return `<g transform="translate(${x},${y})" stroke="#111" stroke-width="1">
     <circle cx="0" cy="-14" r="13" fill="url(#g-glow)" stroke="none"/>
@@ -501,6 +517,7 @@ function renderBoard() {
       const c = pl(h.building.owner).color;
       pieces += h.building.type === 'camp' ? campSvg(x, y + 26, c) : townSvg(x, y + 26, c);
       if (h.lighthouse) pieces += lighthouseSvg(x + 27, y + 12, c);
+      if (h.port) pieces += portSvg(x - 27, y + 14, c);
     }
     if (h.k === S.bandits) {
       marks = `<polygon points="${hexPts(x, y, R - 1)}" fill="#000" fill-opacity=".38"/>` + marks;
@@ -520,7 +537,7 @@ function renderBoard() {
   });
   $('legend').innerHTML = Object.values(TERRAIN).map(t =>
     `<span><i style="background:${t.color}"></i>${t.name}${t.res ? ' ' + RES_ICON[t.res] : ''}</span>`).join('')
-    + '<span>⛺ tábor</span><span>🏰 mesto</span><span>🗼 maják</span><span>🦹 banditi</span>';
+    + '<span>⛺ tábor</span><span>🏰 mesto</span><span>🗼 maják</span><span>⚓ prístav</span><span>🦹 banditi</span>';
 }
 
 function renderPlayers() {
@@ -528,7 +545,7 @@ function renderPlayers() {
     <div class="prow ${p.id === S.current ? 'cur' : ''} ${p.online ? '' : 'off'}">
       <span class="dot" style="background:${p.color}"></span>
       <span class="nm">${esc(p.name)}${p.bot ? ` <small>${(LEVEL_NAMES[p.level] || '').split(' ')[0]}</small>` : ''}${p.id === S.me ? ' (ty)' : ''}${p.online ? '' : ' 📴'}<br>
-        <small>🃏 ${p.cards} · ⛺${p.camps} 🏰${p.towns} 🗼${p.lighthouses} · 🧭${p.discoveries}${S.explorer === p.id ? ' 🏅' : ''} · 📜${p.contracts.length}</small></span>
+        <small>🃏 ${p.cards} · ⛺${p.camps} 🏰${p.towns} 🗼${p.lighthouses} ⚓${p.ports || 0} · 🧭${p.discoveries}${S.explorer === p.id ? ' 🏅' : ''} · 📜${p.contracts.length}</small></span>
       <span class="vp">${p.vp}</span>
     </div>`).join('')
     + (S.phase !== 'ended' && pl(S.current) && !pl(S.current).online && S.current !== S.me
@@ -568,6 +585,7 @@ function renderActions() {
     <button data-mode="camp" ${dis(COSTS.camp, m.camps >= 6)} class="${mode === 'camp' ? 'active' : ''}">⛺ Tábor<small>${costStr(COSTS.camp)}</small></button>
     <button data-mode="town" ${dis(COSTS.town, m.towns >= 4 || !m.camps)} class="${mode === 'town' ? 'active' : ''}">🏰 Mesto<small>${costStr(COSTS.town)}</small></button>
     <button data-mode="lighthouse" ${dis(COSTS.lighthouse, m.lighthouses >= 3)} class="${mode === 'lighthouse' ? 'active' : ''}">🗼 Maják<small>${costStr(COSTS.lighthouse)}</small></button>
+    <button data-mode="port" ${dis(COSTS.port, (m.ports || 0) >= 2)} class="${mode === 'port' ? 'active' : ''}">⚓ Prístav<small>${costStr(COSTS.port)}</small></button>
     <button data-mode="explore" ${dis(COSTS.explore)} class="${mode === 'explore' ? 'active' : ''}">🧭 Výprava<small>${costStr(COSTS.explore)}</small></button>
     ${S.rolled ? '<button id="btnEnd" class="primary wide">Ukončiť ťah ➜</button>' : ''}
   </div>`;
@@ -613,7 +631,24 @@ function renderTrade() {
   } else if (!S.offer) {
     html += '<p class="muted">Obchodovať môže hráč na ťahu. Jeho ponuky sa zobrazia tu.</p>';
   }
+  html += renderPortTrade();
+  // zachovaj rozpísané pole pri prekreslení (iní hráči môžu konať aj počas písania)
+  const focused = document.activeElement && p.contains(document.activeElement) ? document.activeElement : null;
+  const fKey = focused && ['g', 'w', 'pg', 'pw'].map(a => focused.dataset[a] && a + ':' + focused.dataset[a]).find(Boolean);
   p.innerHTML = html;
+  if (fKey) {
+    const [a, r] = fKey.split(':');
+    const el = p.querySelector(`[data-${a}="${r}"]`);
+    if (el) el.focus();
+  }
+  p.querySelectorAll('[data-pg]').forEach(i => { i.oninput = () => { portDraft.give[i.dataset.pg] = +i.value; }; });
+  p.querySelectorAll('[data-pw]').forEach(i => { i.oninput = () => { portDraft.want[i.dataset.pw] = +i.value; }; });
+  if ($('btnPortOffer')) $('btnPortOffer').onclick = () => {
+    act({ type: 'portOffer', give: portDraft.give, want: portDraft.want });
+    portDraft = { give: {}, want: {} };
+  };
+  p.querySelectorAll('[data-paccept]').forEach(b => { b.onclick = () => act({ type: 'portAccept', id: b.dataset.paccept }); });
+  p.querySelectorAll('[data-pcancel]').forEach(b => { b.onclick = () => act({ type: 'portCancel', id: b.dataset.pcancel }); });
   if ($('btnAccept')) $('btnAccept').onclick = () => act({ type: 'acceptOffer' });
   if ($('btnCancelOffer')) $('btnCancelOffer').onclick = () => act({ type: 'cancelOffer' });
   if ($('btnBank')) {
@@ -627,6 +662,35 @@ function renderTrade() {
     act({ type: 'offer', give: tradeDraft.give, want: tradeDraft.want });
     tradeDraft = { give: {}, want: {} };
   };
+}
+
+let portDraft = { give: {}, want: {} };
+
+function renderPortTrade() {
+  const mine = me();
+  const hasPort = (mine.ports || 0) > 0;
+  const offers = S.portOffers || [];
+  const fmt = o => RES.filter(r => o[r]).map(r => `${o[r]}× ${RES_ICON[r]}`).join(' ');
+  let html = '<h3 style="margin-top:14px">⚓ Námorný obchod</h3>';
+  for (const o of offers) {
+    const from = pl(o.from);
+    const own = o.from === S.me;
+    html += `<div class="offer port"><div><b style="color:${from.color}">${esc(from.name)}</b> ponúka <b>${fmt(o.give)}</b> za <b>${fmt(o.want)}</b></div>
+      ${own ? `<button data-pcancel="${o.id}">Stiahnuť ponuku</button>`
+        : hasPort ? `<button data-paccept="${o.id}" class="primary" ${canPay(o.want) ? '' : 'disabled'}>Prijať cez prístav</button>`
+        : '<small class="muted">Na prijatie potrebuješ prístav.</small>'}</div>`;
+  }
+  if (!hasPort) {
+    return html + `<p class="muted">${offers.length ? '' : 'Zatiaľ žiadne ponuky. '}Postav ⚓ prístav na pobreží a môžeš obchodovať s ostatnými prístavmi kedykoľvek – aj keď nie si na ťahu.</p>`;
+  }
+  if (!offers.length) html += '<p class="muted">Zatiaľ žiadne ponuky.</p>';
+  html += `<p class="muted" style="margin:8px 0 4px">${offers.some(o => o.from === S.me) ? 'Nová ponuka nahradí tvoju súčasnú.' : 'Ponuka pre hráčov s prístavom (platí 1 kolo)'}</p>
+    <div class="tradeGrid"><span></span>
+    ${RES.map(r => `<span style="text-align:center">${RES_ICON[r]}</span>`).join('')}
+    <span>Dám</span>${RES.map(r => `<input type="number" min="0" max="${mine.res[r]}" data-pg="${r}" value="${portDraft.give[r] || 0}">`).join('')}
+    <span>Chcem</span>${RES.map(r => `<input type="number" min="0" max="20" data-pw="${r}" value="${portDraft.want[r] || 0}">`).join('')}
+    </div><button id="btnPortOffer" style="width:100%;margin-top:6px">⚓ Poslať cez prístav</button>`;
+  return html;
 }
 
 function renderContracts() {

@@ -11,9 +11,10 @@ const COSTS = {
   camp: { drevo: 1, kamen: 1, obilie: 1 },
   town: { ruda: 2, obilie: 2, sol: 1 },
   lighthouse: { kamen: 2, drevo: 1, sol: 1 },
+  port: { drevo: 2, ruda: 1, obilie: 1 },
   explore: { drevo: 1, obilie: 1 },
 };
-const LIMITS = { camp: 6, town: 4, lighthouse: 3 };
+const LIMITS = { camp: 6, town: 4, lighthouse: 3, port: 2 };
 const COLORS = ['#e4572e', '#2e86de', '#f2c14e', '#3bb273', '#9b5de5'];
 const MAX_PLAYERS = 5;
 const MAP_RADIUS = 3;
@@ -111,7 +112,7 @@ function generateMap(rng) {
     if (outerWater.has(k)) hexes[k] = { q: h.q, r: h.r, terrain: 'more', num: null, revealed: false };
     else hexes[k] = { q: h.q, r: h.r, terrain: outerTerr.pop(), num: outerNums.pop(), revealed: false };
   }
-  for (const k in hexes) Object.assign(hexes[k], { building: null, lighthouse: false });
+  for (const k in hexes) Object.assign(hexes[k], { building: null, lighthouse: false, port: false });
   return hexes;
 }
 
@@ -178,6 +179,9 @@ class Game {
     const mines = Object.keys(this.hexes).filter(k => this.hexes[k].revealed && this.hexes[k].terrain === 'bana');
     this.bandits = mines.length ? mines[Math.floor(this.rng() * mines.length)] : null;
     this.pendingBandits = false;
+    this.portOffers = [];
+    this.portSeq = 0;
+    this.turnNo = 0;
     this.addLog(`Hra začala! Cieľ: ${this.target} bodov. Každý hráč postaví 2 tábory.`);
   }
 
@@ -236,13 +240,14 @@ class Game {
     for (const k in this.hexes) {
       const h = this.hexes[k];
       if (type === 'lighthouse') { if (h.lighthouse && h.building.owner === pid) c++; }
+      else if (type === 'port') { if (h.port && h.building.owner === pid) c++; }
       else if (h.building && h.building.owner === pid && h.building.type === type) c++;
     }
     return c;
   }
 
   vp(p) {
-    return this.count(p.id, 'camp') + 2 * this.count(p.id, 'town') + this.count(p.id, 'lighthouse')
+    return this.count(p.id, 'camp') + 2 * this.count(p.id, 'town') + this.count(p.id, 'lighthouse') + this.count(p.id, 'port')
       + p.contractVP + (this.explorer === p.id ? EXPLORER_VP : 0);
   }
 
@@ -312,6 +317,10 @@ class Game {
     const p = this.player(pid);
     if (!p) throw new GameError('Nie si v tejto hre.');
     if (a.type === 'acceptOffer') return this.acceptOffer(p);
+    // námorný obchod cez prístavy – kedykoľvek, aj mimo ťahu
+    if (a.type === 'portOffer') return this.portOffer(p, a.give, a.want);
+    if (a.type === 'portAccept') return this.portAccept(p, a.id);
+    if (a.type === 'portCancel') return this.portCancel(p, a.id);
     if (this.phase !== 'setup' && this.phase !== 'play') throw new GameError('Hra neprebieha.');
     if (this.current() !== p) throw new GameError('Nie si na ťahu.');
 
@@ -480,6 +489,14 @@ class Game {
       this.pay(p, COSTS.lighthouse);
       h.lighthouse = true;
       this.addLog(`${p.name} stavia maják.`);
+    } else if (kind === 'port') {
+      if (!h.building || h.building.owner !== p.id) throw new GameError('Prístav sa stavia pri tvojej stavbe.');
+      if (h.port) throw new GameError('Tu už prístav stojí.');
+      if (!this.isCoastal(h)) throw new GameError('Prístav musí stáť na pobreží (pri mori alebo okraji mapy).');
+      if (this.count(p.id, 'port') >= LIMITS.port) throw new GameError('Nemáš už voľné prístavy.');
+      this.pay(p, COSTS.port);
+      h.port = true;
+      this.addLog(`⚓ ${p.name} stavia prístav – môže obchodovať s ostatnými prístavmi aj mimo svojho ťahu.`);
     } else {
       throw new GameError('Neznáma stavba.');
     }
@@ -532,6 +549,49 @@ class Game {
     this.addLog(`🤝 ${p.name} ponúka ${fmtRes(give)} za ${fmtRes(want)}.`);
   }
 
+  hasPort(p) {
+    return this.count(p.id, 'port') > 0;
+  }
+
+  portOffer(p, give, want) {
+    if (this.phase !== 'play') throw new GameError('Hra neprebieha.');
+    if (!this.hasPort(p)) throw new GameError('Na námorný obchod potrebuješ prístav.');
+    give = this.cleanBundle(give);
+    want = this.cleanBundle(want);
+    if (!this.cards({ res: give }) || !this.cards({ res: want })) throw new GameError('Ponuka musí niečo dávať aj niečo chcieť.');
+    if (RES.some(r => give[r] && want[r])) throw new GameError('Nemôžeš dávať aj chcieť tú istú surovinu.');
+    if (!this.canPay(p, give)) throw new GameError('Nemáš suroviny, ktoré ponúkaš.');
+    this.portOffers = (this.portOffers || []).filter(o => o.from !== p.id); // jedna ponuka na hráča
+    this.portSeq = (this.portSeq || 0) + 1;
+    this.portOffers.push({ id: 'o' + this.portSeq, from: p.id, give, want, turnNo: this.turnNo || 0 });
+    this.addLog(`⚓ ${p.name} posiela cez prístav ponuku: ${fmtRes(give)} za ${fmtRes(want)}.`);
+  }
+
+  portAccept(p, id) {
+    if (this.phase !== 'play') throw new GameError('Hra neprebieha.');
+    const o = (this.portOffers || []).find(x => x.id === id);
+    if (!o) throw new GameError('Táto ponuka už neplatí.');
+    if (o.from === p.id) throw new GameError('Nemôžeš prijať vlastnú ponuku.');
+    if (!this.hasPort(p)) throw new GameError('Na námorný obchod potrebuješ prístav.');
+    const from = this.player(o.from);
+    if (!this.canPay(p, o.want)) throw new GameError('Nemáš požadované suroviny.');
+    if (!this.canPay(from, o.give)) {
+      this.portOffers = this.portOffers.filter(x => x !== o);
+      throw new GameError('Ponúkajúci už nemá dané suroviny – ponuka zrušená.');
+    }
+    this.pay(from, o.give);
+    this.pay(p, o.want);
+    for (const r of RES) { from.res[r] += o.want[r]; p.res[r] += o.give[r]; }
+    this.portOffers = this.portOffers.filter(x => x !== o);
+    this.addLog(`⚓ ${p.name} prijíma námorný obchod od ${from.name}.`);
+  }
+
+  portCancel(p, id) {
+    const o = (this.portOffers || []).find(x => x.id === id);
+    if (!o || o.from !== p.id) throw new GameError('Túto ponuku nemôžeš stiahnuť.');
+    this.portOffers = this.portOffers.filter(x => x !== o);
+  }
+
   acceptOffer(p) {
     const o = this.offer;
     if (this.phase !== 'play' || !o) throw new GameError('Žiadna ponuka nie je aktívna.');
@@ -566,6 +626,9 @@ class Game {
     this.dice = null;
     this.turn = (this.turn + 1) % this.players.length;
     if (this.turn === 0) this.round++;
+    // námorné ponuky platia jedno celé kolo
+    this.turnNo = (this.turnNo || 0) + 1;
+    this.portOffers = (this.portOffers || []).filter(o => this.turnNo - o.turnNo < this.players.length);
     this.addLog(`Na ťahu je ${this.players[this.turn].name}.`);
   }
 
@@ -607,6 +670,7 @@ class Game {
         camps: this.phase === 'lobby' ? 0 : this.count(p.id, 'camp'),
         towns: this.phase === 'lobby' ? 0 : this.count(p.id, 'town'),
         lighthouses: this.phase === 'lobby' ? 0 : this.count(p.id, 'lighthouse'),
+        ports: this.phase === 'lobby' ? 0 : this.count(p.id, 'port'),
       })),
       log: this.log.slice(-40),
     };
@@ -624,6 +688,7 @@ class Game {
       lastEvent: this.lastEvent,
       lastRoll: this.lastRoll || null,
       bandits: this.bandits || null,
+      portOffers: this.portOffers || [],
       pendingBandits: !!this.pendingBandits,
       winner: this.winner,
       bankRate: me ? this.bankRate(me) : 4,
@@ -636,6 +701,7 @@ class Game {
         num: h.revealed ? h.num : null,
         building: h.building,
         lighthouse: h.lighthouse,
+        port: !!h.port,
         coastal: this.isCoastal(h),
       })),
     });

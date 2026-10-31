@@ -18,6 +18,8 @@ function playBots(n, seed) {
       const taker = g.players.find(p => bot.wantsOffer(g, p));
       if (taker) { g.act(taker.id, { type: 'acceptOffer' }); continue; }
     }
+    const pt = g.players.map(p => [p, bot.wantsPortOffer(g, p)]).find(([, o]) => o);
+    if (pt) { g.act(pt[0].id, { type: 'portAccept', id: pt[1].id }); continue; }
     const p = g.current();
     const m = (mem[p.id] ||= {});
     let a = bot.decide(g, p, m);
