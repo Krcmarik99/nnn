@@ -164,3 +164,4 @@ select.lvl + button.small { margin-left: 0; }
 .devcard .info { flex: 1; font-size: .85rem; }
 .devcard .cost { color: var(--muted); font-size: .75rem; }
 #cardsPanel[hidden] { display: none; }
+.prow .nm small.stats { display: block; white-space: normal; line-height: 1.5; }

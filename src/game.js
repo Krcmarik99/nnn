@@ -21,6 +21,8 @@ const MAP_RADIUS = 3;
 const STORM_LIMIT = 8;
 const EXPLORER_MIN = 3;
 const EXPLORER_VP = 2;
+const ROAD_MIN = 4;   // najdlhšia cesta: aspoň 4 stavby za sebou
+const ROAD_VP = 2;
 const BANDIT_SUM = 7;
 const TERRAIN_NAMES = { les: 'Les', lom: 'Lom', bana: 'Baňa', pole: 'Pole', solnisko: 'Soľnisko', more: 'More' };
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
@@ -191,6 +193,7 @@ class Game {
     this.market = false;
     this.offer = null;
     this.explorer = null;
+    this.roadHolder = null;
     this.lastEvent = null;
     this.winner = null;
     this.eventDeck = [];
@@ -272,7 +275,8 @@ class Game {
 
   vp(p) {
     return this.count(p.id, 'camp') + 2 * this.count(p.id, 'town') + this.count(p.id, 'lighthouse') + this.count(p.id, 'port')
-      + p.contractVP + (p.cardVP || 0) + (this.explorer === p.id ? EXPLORER_VP : 0);
+      + p.contractVP + (p.cardVP || 0) + (this.explorer === p.id ? EXPLORER_VP : 0)
+      + (this.roadHolder === p.id ? ROAD_VP : 0);
   }
 
   cards(p) {
@@ -313,7 +317,48 @@ class Game {
     return this.count(p.id, 'lighthouse') > 0 ? 3 : 4;
   }
 
+  // Najdlhšia reťaz vlastných stavieb na susedných poliach (bez opakovania poľa)
+  longestPath(pid, extraKey = null) {
+    const mine = new Set(Object.keys(this.hexes).filter(k => {
+      const h = this.hexes[k];
+      return h.building && h.building.owner === pid;
+    }));
+    if (extraKey) mine.add(extraKey);
+    const adj = {};
+    for (const k of mine) {
+      adj[k] = this.neighbors(this.hexes[k]).map(n => key(n.q, n.r)).filter(n => mine.has(n));
+    }
+    let best = [];
+    const path = [];
+    const seen = new Set();
+    const dfs = k => {
+      seen.add(k);
+      path.push(k);
+      if (path.length > best.length) best = path.slice();
+      for (const n of adj[k]) if (!seen.has(n)) dfs(n);
+      path.pop();
+      seen.delete(k);
+    };
+    for (const k of mine) dfs(k);
+    return best;
+  }
+
+  updateRoad() {
+    const holder = this.roadHolder ? this.player(this.roadHolder) : null;
+    let bestP = holder;
+    let bestLen = holder ? this.longestPath(holder.id).length : 0;
+    for (const p of this.players) {
+      const len = this.longestPath(p.id).length;
+      if (len >= ROAD_MIN && len > bestLen) { bestP = p; bestLen = len; }
+    }
+    if (bestP && bestLen >= ROAD_MIN && bestP.id !== this.roadHolder) {
+      this.roadHolder = bestP.id;
+      this.addLog(`🛤️ ${bestP.name} získava Najdlhšiu cestu – ${bestLen} stavby za sebou (+${ROAD_VP} body).`);
+    }
+  }
+
   checkWin() {
+    this.updateRoad();
     const p = this.current();
     if (p && this.vp(p) >= this.target) {
       this.phase = 'ended';
@@ -782,6 +827,7 @@ class Game {
         res: p.id === pid ? { ...p.res } : null,
         vp: this.phase === 'lobby' ? 0 : this.vp(p),
         discoveries: p.discoveries,
+        roadLen: this.phase === 'lobby' ? 0 : this.longestPath(p.id).length,
         contracts: p.contracts.slice(),
         devCount: (p.devCards || []).length,
         devCards: p.id === pid ? (p.devCards || []).map(c => ({ ...c, fresh: c.turnNo === (this.turnNo || 0) })) : null,
@@ -804,6 +850,9 @@ class Game {
       market: this.market,
       offer: this.offer,
       explorer: this.explorer,
+      roadHolder: this.roadHolder || null,
+      roadPath: this.roadHolder ? this.longestPath(this.roadHolder) : [],
+      roadMin: ROAD_MIN,
       lastEvent: this.lastEvent,
       lastRoll: this.lastRoll || null,
       bandits: this.bandits || null,
@@ -831,4 +880,4 @@ class Game {
   }
 }
 
-module.exports = { Game, GameError, RES, COSTS, LIMITS, CONTRACTS, EVENTS, TERRAIN_RES, MAX_PLAYERS, STORM_LIMIT, BANDIT_SUM, CARDS, CARD_COST, generateMap, key };
+module.exports = { Game, GameError, RES, COSTS, LIMITS, CONTRACTS, EVENTS, TERRAIN_RES, MAX_PLAYERS, STORM_LIMIT, BANDIT_SUM, ROAD_MIN, CARDS, CARD_COST, generateMap, key };
