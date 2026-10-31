@@ -385,10 +385,19 @@ function cloud(x, y, s = 1, c = '#2f4a6a') {
     <circle cx="-8" cy="2" r="7"/><circle cx="0" cy="-3" r="9"/><circle cx="9" cy="2" r="7"/><rect x="-15" y="2" width="31" height="7" rx="3.5"/></g></g>`;
 }
 
+// Vzory s realistickými textúrami (public/textures.js)
+function texturePatterns() {
+  if (!TEXTURES) return '';
+  const pat = (id, url, size, x = 0, y = 0) => `<pattern id="tx-${id}" patternUnits="userSpaceOnUse" x="${x}" y="${y}" width="${size}" height="${size}">
+    <image href="${url}" width="${size}" height="${size}" preserveAspectRatio="none"/></pattern>`;
+  return ['les', 'lom', 'bana', 'pole', 'solnisko', 'more', 'hmla'].map(k => pat(k, TEXTURES[k], 96, -48, -48)).join('')
+    + pat('ocean', TEXTURES.ocean, 140) + pat('caustic', TEXTURES.caustic, 120) + pat('piesok', TEXTURES.piesok, 70);
+}
+
 const TILE_DEFS = (() => {
   const grad = (id, a, b) => `<radialGradient id="${id}" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></radialGradient>`;
   const tile = (id, body) => `<g id="${id}" clip-path="url(#hexclip)">${body}<polygon points="${hexPts(0, 0)}" fill="url(#g-light)"/></g>`;
-  const base = id => `<polygon points="${hexPts(0, 0)}" fill="url(#g-${id})"/>`;
+  const base = id => `<polygon points="${hexPts(0, 0)}" fill="url(#${TEXTURES && TEXTURES[id] ? 'tx' : 'g'}-${id})"/>`;
   const dots = (c, n, seed) => {
     let out = '', v = seed;
     for (let i = 0; i < n; i++) {
@@ -415,50 +424,37 @@ const TILE_DEFS = (() => {
     <linearGradient id="g-ocean" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1f6aa8"/><stop offset="1" stop-color="#0c3157"/></linearGradient>
     <radialGradient id="g-token" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#fffdf5"/><stop offset="1" stop-color="#e3d2a6"/></radialGradient>
     <radialGradient id="g-token-hot" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#ffd38a"/><stop offset="1" stop-color="#e98a1c"/></radialGradient>
+    <radialGradient id="g-vignette" cx="50%" cy="50%" r="72%"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></radialGradient>
     <radialGradient id="g-glow"><stop offset="0" stop-color="#ffe680" stop-opacity=".9"/><stop offset="1" stop-color="#ffe680" stop-opacity="0"/></radialGradient>
     <filter id="f-shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity=".45"/></filter>
     <pattern id="p-furrow" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(-30)">
       <rect width="8" height="3" fill="#b9831f" opacity=".35"/></pattern>
 
-    ${tile('t-les', base('les') + dots('#9be3a7', 18, 3)
-      + pine(-20, -24, 1) + pine(2, -30, .9) + pine(23, -22, 1.05) + pine(-33, 0, .9)
-      + pine(33, 2, .95) + pine(-25, 22, 1) + pine(25, 24, .9) + pine(-4, 34, .8) + pine(12, 36, .7))}
+    ${texturePatterns()}
 
-    ${tile('t-lom', base('lom')
-      + '<path d="M-46,-14 L46,-24 L46,-40 L-46,-40Z" fill="#8a96a5"/><path d="M-46,-14 L46,-24" stroke="#5c6672" stroke-width="2"/>'
-      + '<path d="M-46,30 L46,22 L46,46 L-46,46Z" fill="#7d8896"/><path d="M-46,30 L46,22" stroke="#5c6672" stroke-width="2"/>'
-      + rock(-22, -20, 1) + rock(18, -28, .8) + rock(30, -6, .9) + rock(-30, 6, .8) + rock(-16, 28, .9) + rock(22, 28, 1.1)
-      + '<path d="M-6,-34 l4,6 l-3,4" stroke="#4a525c" fill="none" stroke-width="1"/>')}
+    ${tile('t-les', base('les'))}
+
+    ${tile('t-lom', base('lom'))}
 
     ${tile('t-bana', base('bana')
-      + '<path d="M-50,-2 L-26,-36 L-12,-18 L6,-42 L26,-16 L36,-28 L50,-4Z" fill="#6b4a32"/>'
-      + '<path d="M-26,-36 L-18,-24 L-12,-18 L-22,-20Z M6,-42 L16,-28 L26,-16 L12,-22Z" fill="#4a2f1d"/>'
-      + '<path d="M-26,-36 L-30,-30 L-24,-31 L-22,-28Z M6,-42 L1,-35 L7,-36 L10,-32Z" fill="#e9ecef"/>'
-      + '<g transform="translate(-26,22)"><path d="M-10,10 L-10,-2 Q0,-12 10,-2 L10,10Z" fill="#1a110a"/>'
-      + '<path d="M-12,10 L-12,-3 Q0,-15 12,-3 L12,10" fill="none" stroke="#c08552" stroke-width="3"/></g>'
-      + '<path d="M-14,32 L40,32 M-14,36 L40,36" stroke="#3b2414" stroke-width="1.5"/>'
-      + '<g fill="#7fdbff" stroke="#1d6fa5" stroke-width=".8"><path d="M22,6 l4,-5 l4,5 l-4,5Z"/><path d="M32,16 l3,-4 l3,4 l-3,4Z"/><path d="M-36,-8 l3,-4 l3,4 l-3,4Z"/></g>'
-      + '<g transform="translate(22,26)"><rect x="-8" y="-6" width="16" height="7" fill="#8d6e63" stroke="#3b2414"/><circle cx="-4" cy="3" r="2.2" fill="#333"/><circle cx="4" cy="3" r="2.2" fill="#333"/><path d="M-6,-6 l3,-3 l4,2 l3,-2 l2,3Z" fill="#9aa5b1"/></g>')}
+      + '<g transform="translate(-24,20)"><path d="M-12,12 L-12,0 Q0,-14 12,0 L12,12Z" fill="#0d0805"/>'
+      + '<path d="M-13,12 L-13,-1 Q0,-16 13,-1 L13,12" fill="none" stroke="#6b4423" stroke-width="3.2"/>'
+      + '<path d="M-13,12 L-13,-1 Q0,-16 13,-1" fill="none" stroke="#a87444" stroke-width="1.2"/></g>'
+      + '<path d="M-12,33 L34,33 M-12,37 L34,37" stroke="#2e1d10" stroke-width="1.4"/>'
+      + '<path d="M-8,33 v4 M0,33 v4 M8,33 v4 M16,33 v4 M24,33 v4" stroke="#5a3b22" stroke-width="1.6"/>'
+      + '<g transform="translate(20,28)"><path d="M-8,-6 L8,-6 L6,2 L-6,2Z" fill="#6d5442" stroke="#2e1d10" stroke-width=".8"/>'
+      + '<path d="M-7,-6 q2,-4 5,-2 q3,-3 6,0 q3,-1 3,2Z" fill="#5d6f80"/><path d="M-3,-8 l2,-2 2,2 -2,1Z" fill="#8fe3ff"/>'
+      + '<circle cx="-4" cy="3.5" r="2.2" fill="#222"/><circle cx="4" cy="3.5" r="2.2" fill="#222"/></g>')}
 
-    ${tile('t-pole', base('pole') + `<polygon points="${hexPts(0, 0)}" fill="url(#p-furrow)"/>`
-      + wheat(-22, -26) + wheat(2, -32, .9) + wheat(24, -22) + wheat(-34, 2, .9) + wheat(34, 4, .9)
-      + wheat(-24, 26) + wheat(26, 26, .95) + wheat(0, 36, .8))}
+    ${tile('t-pole', base('pole'))}
 
-    ${tile('t-solnisko', base('solnisko')
-      + '<g stroke="#ffffff" stroke-width="2" fill="#9fd3e8">'
-      + '<rect x="-30" y="-36" width="18" height="12" rx="2"/><rect x="-9" y="-38" width="18" height="12" rx="2"/><rect x="12" y="-36" width="18" height="12" rx="2"/>'
-      + '<rect x="-40" y="-18" width="14" height="11" rx="2"/><rect x="26" y="-18" width="14" height="11" rx="2"/></g>'
-      + '<g fill="#ffffff" opacity=".8"><path d="M-25,-31 l2,-3 l2,3Z"/><path d="M17,-31 l2,-3 l2,3Z"/></g>'
-      + saltPile(-28, 16, 1.1) + saltPile(28, 18, 1) + saltPile(-10, 32, .8) + saltPile(12, 34, .75))}
+    ${tile('t-solnisko', base('solnisko') + saltPile(-26, 18, 0.9) + saltPile(-14, 24, 0.7))}
 
     ${tile('t-more', base('more')
-      + wave(-20, -26) + wave(14, -32, .9) + wave(22, -10) + wave(-30, -4, .9) + wave(-6, 8, 1.1)
-      + wave(-22, 24) + wave(18, 22, .9) + wave(0, 38, .8)
-      + '<g transform="translate(14,4) scale(.9)"><path d="M-10,4 L10,4 L7,9 L-7,9Z" fill="#8d5524"/><path d="M0,4 L0,-12 L8,2Z" fill="#fefae0"/><path d="M0,-12 L0,4" stroke="#5b3a1e"/></g>')}
+      + `<rect class="shimmer" x="-80" y="-80" width="160" height="160" fill="${TEXTURES ? 'url(#tx-caustic)' : 'none'}" opacity=".45"/>`)}
 
-    ${tile('t-hmla', `<polygon points="${hexPts(0, 0)}" fill="url(#g-hmla)"/>`
-      + cloud(-20, -24, 1.1) + cloud(18, -16, .9, '#36547a') + cloud(-14, 22, .9, '#36547a') + cloud(22, 26, 1)
-      + '<text x="0" y="9" text-anchor="middle" font-size="24" font-weight="700" fill="#6f8db0">?</text>')}
+    ${tile('t-hmla', base('hmla')
+      + '<text x="0" y="9" text-anchor="middle" font-size="22" font-weight="700" fill="#c8d6e6" fill-opacity=".35">?</text>')}
   </defs>`;
 })();
 
@@ -554,15 +550,11 @@ function roadsSvg(pos) {
 
 // Oceán okolo ostrova s pomaly sa pohybujúcimi vlnami
 function oceanSvg(x, y, w, h) {
-  let waves = '';
-  let v = 7;
-  for (let i = 0; i < 46; i++) {
-    v = (v * 9301 + 49297) % 233280; const wx = x + v / 233280 * w;
-    v = (v * 9301 + 49297) % 233280; const wy = y + v / 233280 * h;
-    v = (v * 9301 + 49297) % 233280; const sc = 0.7 + v / 233280 * 0.8;
-    waves += `<g transform="translate(${wx.toFixed(1)},${wy.toFixed(1)}) scale(${sc.toFixed(2)})"><path class="owv d${i % 4}" d="M-12,0 q4,-5 8,0 t8,0 t8,0" fill="none" stroke="#9fd1ff" stroke-width="2" stroke-linecap="round"/></g>`;
-  }
-  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="22" fill="url(#g-ocean)"/><g opacity=".35">${waves}</g>`;
+  if (!TEXTURES) return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="22" fill="url(#g-ocean)"/>`;
+  return `<clipPath id="oceanclip"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="22"/></clipPath>
+    <g clip-path="url(#oceanclip)"><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#tx-ocean)"/>
+    <rect class="shimmer" x="${x - 120}" y="${y - 120}" width="${w + 240}" height="${h + 240}" fill="url(#tx-caustic)" opacity=".35"/>
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#g-vignette)"/></g>`;
 }
 
 function renderBoard() {
@@ -598,7 +590,7 @@ function renderBoard() {
     if (h.revealed && h.terrain !== 'more') {
       tiles += tileG;
       shore += `<polygon points="${hexPts(x, y, R + 10)}" fill="#e0f2ff" fill-opacity=".16"/>`;
-      shore += `<polygon points="${hexPts(x, y, R + 5)}" fill="#e6cf95" stroke="#bfa063" stroke-width="1"/>`;
+      shore += `<polygon points="${hexPts(x, y, R + 5)}" fill="${TEXTURES ? 'url(#tx-piesok)' : '#e6cf95'}" stroke="#bfa063" stroke-opacity=".6" stroke-width="1"/>`;
     } else {
       seaTiles += tileG;
     }
@@ -863,7 +855,7 @@ function renderHero() {
   for (const [q, r, t] of cells) {
     const x = W * (q + r / 2), y = 1.5 * R * r;
     if (t !== 'more') {
-      shore += `<polygon points="${hexPts(x, y, R + 10)}" fill="#e0f2ff" fill-opacity=".16"/><polygon points="${hexPts(x, y, R + 5)}" fill="#e6cf95" stroke="#bfa063"/>`;
+      shore += `<polygon points="${hexPts(x, y, R + 10)}" fill="#e0f2ff" fill-opacity=".16"/><polygon points="${hexPts(x, y, R + 5)}" fill="${TEXTURES ? 'url(#tx-piesok)' : '#e6cf95'}" stroke="#bfa063" stroke-opacity=".6"/>`;
     }
     tiles += `<use href="#t-${t}" transform="translate(${x},${y})"/><polygon points="${hexPts(x, y)}" fill="none" stroke="#0b1520" stroke-opacity=".5" stroke-width="1.6"/>`;
   }

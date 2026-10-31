@@ -222,3 +222,8 @@ button.ghost { background: transparent; box-shadow: none; }
 .hero { width: 100%; max-width: 360px; margin: -6px auto 0; display: block; }
 .title { text-align: center; margin-bottom: 0; }
 .subtitle { text-align: center; margin-top: 0; }
+
+/* realistické textúry: pohyb odleskov na vode */
+.shimmer { animation: shimmer 16s ease-in-out infinite alternate; }
+@keyframes shimmer { from { translate: 0 0; } to { translate: 46px 28px; } }
+@media (prefers-reduced-motion: reduce) { .shimmer { animation: none; } }
