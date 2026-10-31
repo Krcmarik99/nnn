@@ -25,6 +25,25 @@ const BANDIT_SUM = 7;
 const TERRAIN_NAMES = { les: 'Les', lom: 'Lom', bana: 'Baňa', pole: 'Pole', solnisko: 'Soľnisko', more: 'More' };
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 
+// Rozvojové karty – kupujú sa, hrá sa max. 1 za ťah (nie v ťahu kúpy)
+const CARD_COST = { obilie: 1, ruda: 1, sol: 1 };
+const CARDS = [
+  { id: 'mapa', name: 'Mapa pokladu', icon: '🗺️', count: 3, target: 'hidden',
+    text: 'Odkry ľubovoľné zahalené pole (nemusí susediť) a ak je to pevnina, získaj 2 jeho suroviny.' },
+  { id: 'kupec', name: 'Kupec', icon: '🛒', count: 3,
+    text: 'Do konca ťahu meníš s bankou 2:1.' },
+  { id: 'uroda', name: 'Bohatá úroda', icon: '🌾', count: 3,
+    text: 'Každá tvoja stavba ihneď vyprodukuje surovinu zo svojho poľa (okrem poľa s banditmi).' },
+  { id: 'stavitelia', name: 'Stavitelia', icon: '🔨', count: 3, target: 'camp',
+    text: 'Postav zadarmo tábor (podľa bežných pravidiel).' },
+  { id: 'pasaci', name: 'Pašeráci', icon: '🏴‍☠️', count: 2,
+    text: 'Od každého súpera, ktorý má aspoň 5 surovín, získaj 1 náhodnú.' },
+  { id: 'listina', name: 'Kráľovská listina', icon: '📜', count: 2,
+    text: 'Získaš 1 bod natrvalo.' },
+  { id: 'kompas', name: 'Lodný kompas', icon: '🧭', count: 2,
+    text: 'Pripočítaj si 1 objav (pre titul Veľký objaviteľ) a získaj 1 náhodnú surovinu.' },
+];
+
 const EVENTS = [
   { id: 'burka', name: 'Búrka', text: `Kto má viac ako ${STORM_LIMIT} surovín, stratí polovicu (náhodne).`, count: 3 },
   { id: 'hojnost', name: 'Hojnosť', text: 'Každá stavba ihneď vyprodukuje surovinu zo svojho políčka.', count: 2 },
@@ -140,6 +159,8 @@ class Game {
       discoveries: 0,
       contractVP: 0,
       contracts: [],
+      devCards: [],
+      cardVP: 0,
       bot: !!opts.bot,
       level: opts.bot ? (opts.level || 'normal') : null,
     };
@@ -182,6 +203,9 @@ class Game {
     this.portOffers = [];
     this.portSeq = 0;
     this.turnNo = 0;
+    this.cardDeck = shuffle(CARDS.flatMap(c => Array(c.count).fill(c.id)), this.rng);
+    this.cardSeq = 0;
+    this.cardPlayed = false;
     this.addLog(`Hra začala! Cieľ: ${this.target} bodov. Každý hráč postaví 2 tábory.`);
   }
 
@@ -248,7 +272,7 @@ class Game {
 
   vp(p) {
     return this.count(p.id, 'camp') + 2 * this.count(p.id, 'town') + this.count(p.id, 'lighthouse') + this.count(p.id, 'port')
-      + p.contractVP + (this.explorer === p.id ? EXPLORER_VP : 0);
+      + p.contractVP + (p.cardVP || 0) + (this.explorer === p.id ? EXPLORER_VP : 0);
   }
 
   cards(p) {
@@ -339,6 +363,8 @@ class Game {
       case 'offer': return this.makeOffer(p, a.give, a.want);
       case 'cancelOffer': this.offer = null; return;
       case 'fulfill': return this.fulfill(p, a.id);
+      case 'buyCard': return this.buyCard(p);
+      case 'playCard': return this.playCard(p, a.id, a.hex);
       case 'endTurn': return this.endTurn(p);
       default: throw new GameError('Neznáma akcia.');
     }
@@ -619,9 +645,99 @@ class Game {
     this.checkWin();
   }
 
+  // ---------- rozvojové karty ----------
+  buyCard(p) {
+    // hry uložené pred pridaním kariet balíček ešte nemajú
+    if (!this.cardDeck) this.cardDeck = shuffle(CARDS.flatMap(c => Array(c.count).fill(c.id)), this.rng);
+    if (!this.cardDeck.length) throw new GameError('Rozvojové karty sa minuli.');
+    this.pay(p, CARD_COST);
+    this.cardSeq = (this.cardSeq || 0) + 1;
+    (p.devCards ||= []).push({ id: 'k' + this.cardSeq, type: this.cardDeck.pop(), turnNo: this.turnNo || 0 });
+    this.addLog(`🎴 ${p.name} kupuje rozvojovú kartu.`);
+  }
+
+  playCard(p, id, hexKey) {
+    const card = (p.devCards || []).find(c => c.id === id);
+    if (!card) throw new GameError('Túto kartu nemáš.');
+    if (card.turnNo === (this.turnNo || 0)) throw new GameError('Kartu nemôžeš zahrať v ťahu, keď si ju kúpil(a).');
+    if (this.cardPlayed) throw new GameError('V jednom ťahu môžeš zahrať len jednu rozvojovú kartu.');
+    const def = CARDS.find(c => c.id === card.type);
+    const label = `${def.icon} ${p.name} hrá kartu ${def.name}`;
+    switch (def.id) {
+      case 'mapa': {
+        const h = this.hex(hexKey);
+        if (h.revealed) throw new GameError('Vyber zahalené pole.');
+        h.revealed = true;
+        p.discoveries++;
+        if (this.isLand(h)) {
+          const r = TERRAIN_RES[h.terrain];
+          this.gain(p, r, 2);
+          this.addLog(`${label} – objavuje ${TERRAIN_NAMES[h.terrain]} a dostáva 2× ${RES_NAMES[r]}.`);
+        } else {
+          this.addLog(`${label} – objavuje otvorené more.`);
+        }
+        this.updateExplorer();
+        break;
+      }
+      case 'kupec':
+        this.market = true;
+        this.addLog(`${label} – do konca ťahu mení s bankou 2:1.`);
+        break;
+      case 'uroda': {
+        const g = emptyRes();
+        for (const k in this.hexes) {
+          const h = this.hexes[k];
+          if (!h.building || h.building.owner !== p.id || k === this.bandits) continue;
+          const r = TERRAIN_RES[h.terrain];
+          const n = h.building.type === 'town' ? 2 : 1;
+          this.gain(p, r, n);
+          g[r] += n;
+        }
+        this.addLog(`${label} a dostáva ${fmtRes(g)}.`);
+        break;
+      }
+      case 'stavitelia': {
+        const h = this.hex(hexKey);
+        if (!h.revealed || !this.isLand(h)) throw new GameError('Tábor musí stáť na odkrytej pevnine.');
+        if (h.building) throw new GameError('Políčko je obsadené.');
+        if (!this.adjacentToOwn(h, p.id)) throw new GameError('Tábor musí susediť s tvojou stavbou.');
+        if (this.count(p.id, 'camp') >= LIMITS.camp) throw new GameError('Nemáš už voľné tábory.');
+        h.building = { owner: p.id, type: 'camp' };
+        this.addLog(`${label} a stavia tábor zadarmo.`);
+        break;
+      }
+      case 'pasaci': {
+        const got = emptyRes();
+        for (const o of this.players) {
+          if (o === p || this.cards(o) < 5) continue;
+          const lost = this.loseRandom(o, 1);
+          for (const r of RES) { p.res[r] += lost[r]; got[r] += lost[r]; }
+        }
+        this.addLog(`${label} a získava ${fmtRes(got)}.`);
+        break;
+      }
+      case 'listina':
+        p.cardVP = (p.cardVP || 0) + 1;
+        this.addLog(`${label} (+1 bod).`);
+        break;
+      case 'kompas': {
+        p.discoveries++;
+        const r = this.randomRes();
+        this.gain(p, r);
+        this.addLog(`${label} (+1 objav) a dostáva 1× ${RES_NAMES[r]}.`);
+        this.updateExplorer();
+        break;
+      }
+    }
+    p.devCards = p.devCards.filter(c => c !== card);
+    this.cardPlayed = true;
+    this.checkWin();
+  }
+
   endTurn(p) {
     this.offer = null;
     this.market = false;
+    this.cardPlayed = false;
     this.rolled = false;
     this.dice = null;
     this.turn = (this.turn + 1) % this.players.length;
@@ -667,6 +783,9 @@ class Game {
         vp: this.phase === 'lobby' ? 0 : this.vp(p),
         discoveries: p.discoveries,
         contracts: p.contracts.slice(),
+        devCount: (p.devCards || []).length,
+        devCards: p.id === pid ? (p.devCards || []).map(c => ({ ...c, fresh: c.turnNo === (this.turnNo || 0) })) : null,
+        cardVP: p.cardVP || 0,
         camps: this.phase === 'lobby' ? 0 : this.count(p.id, 'camp'),
         towns: this.phase === 'lobby' ? 0 : this.count(p.id, 'town'),
         lighthouses: this.phase === 'lobby' ? 0 : this.count(p.id, 'lighthouse'),
@@ -689,6 +808,10 @@ class Game {
       lastRoll: this.lastRoll || null,
       bandits: this.bandits || null,
       portOffers: this.portOffers || [],
+      cardsLeft: (this.cardDeck || []).length,
+      cardPlayed: !!this.cardPlayed,
+      cardDefs: CARDS.map(({ id, name, icon, text, target }) => ({ id, name, icon, text, target: target || null })),
+      cardCost: CARD_COST,
       pendingBandits: !!this.pendingBandits,
       winner: this.winner,
       bankRate: me ? this.bankRate(me) : 4,
@@ -708,4 +831,4 @@ class Game {
   }
 }
 
-module.exports = { Game, GameError, RES, COSTS, LIMITS, CONTRACTS, EVENTS, TERRAIN_RES, MAX_PLAYERS, STORM_LIMIT, BANDIT_SUM, generateMap, key };
+module.exports = { Game, GameError, RES, COSTS, LIMITS, CONTRACTS, EVENTS, TERRAIN_RES, MAX_PLAYERS, STORM_LIMIT, BANDIT_SUM, CARDS, CARD_COST, generateMap, key };
