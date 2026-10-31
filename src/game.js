@@ -23,6 +23,11 @@ const EXPLORER_MIN = 3;
 const EXPLORER_VP = 2;
 const ROAD_MIN = 4;   // najdlhšia cesta: aspoň 4 stavby za sebou
 const ROAD_VP = 2;
+const SOLDIER_COST = { ruda: 1, obilie: 1 };
+const SOLDIER_MAX = 10;
+const ARMY_MIN = 3;    // najväčšie vojsko: aspoň 3 vojaci
+const ARMY_VP = 2;
+const PIRATE_GUARD = 2; // toľko vojakov ochráni pred pirátmi
 const BANDIT_SUM = 7;
 const TERRAIN_NAMES = { les: 'Les', lom: 'Lom', bana: 'Baňa', pole: 'Pole', solnisko: 'Soľnisko', more: 'More' };
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
@@ -49,7 +54,7 @@ const CARDS = [
 const EVENTS = [
   { id: 'burka', name: 'Búrka', text: `Kto má viac ako ${STORM_LIMIT} surovín, stratí polovicu (náhodne).`, count: 3 },
   { id: 'hojnost', name: 'Hojnosť', text: 'Každá stavba ihneď vyprodukuje surovinu zo svojho políčka.', count: 2 },
-  { id: 'pirati', name: 'Pirátsky nájazd', text: 'Každý hráč bez majáka stratí 1 náhodnú surovinu.', count: 3 },
+  { id: 'pirati', name: 'Pirátsky nájazd', text: 'Každý hráč bez majáka a bez aspoň 2 vojakov stratí 1 náhodnú surovinu.', count: 3 },
   { id: 'lod', name: 'Obchodná loď', text: 'Každý hráč s majákom dostane 2 náhodné suroviny.', count: 2 },
   { id: 'sucho', name: 'Sucho', text: 'Každý hráč stratí polovicu obilia.', count: 2 },
   { id: 'nalez', name: 'Nález', text: 'Hráč na ťahu dostane 2 náhodné suroviny.', count: 2 },
@@ -162,6 +167,7 @@ class Game {
       contractVP: 0,
       contracts: [],
       devCards: [],
+      soldiers: 0,
       cardVP: 0,
       bot: !!opts.bot,
       level: opts.bot ? (opts.level || 'normal') : null,
@@ -194,6 +200,8 @@ class Game {
     this.offer = null;
     this.explorer = null;
     this.roadHolder = null;
+    this.armyHolder = null;
+    this.chased = false;
     this.lastEvent = null;
     this.winner = null;
     this.eventDeck = [];
@@ -276,7 +284,7 @@ class Game {
   vp(p) {
     return this.count(p.id, 'camp') + 2 * this.count(p.id, 'town') + this.count(p.id, 'lighthouse') + this.count(p.id, 'port')
       + p.contractVP + (p.cardVP || 0) + (this.explorer === p.id ? EXPLORER_VP : 0)
-      + (this.roadHolder === p.id ? ROAD_VP : 0);
+      + (this.roadHolder === p.id ? ROAD_VP : 0) + (this.armyHolder === p.id ? ARMY_VP : 0);
   }
 
   cards(p) {
@@ -357,8 +365,49 @@ class Game {
     }
   }
 
+  updateArmy() {
+    const holder = this.armyHolder ? this.player(this.armyHolder) : null;
+    let best = holder;
+    for (const p of this.players) {
+      const n = p.soldiers || 0;
+      if (n >= ARMY_MIN && n > (best ? best.soldiers || 0 : 0)) best = p;
+    }
+    if (best && best !== holder && (best.soldiers || 0) >= ARMY_MIN) {
+      this.armyHolder = best.id;
+      this.addLog(`🎖️ ${best.name} má Najväčšie vojsko – ${best.soldiers} vojakov (+${ARMY_VP} body).`);
+    }
+  }
+
+  recruit(p) {
+    if ((p.soldiers || 0) >= SOLDIER_MAX) throw new GameError(`Viac ako ${SOLDIER_MAX} vojakov naverbovať nemôžeš.`);
+    this.pay(p, SOLDIER_COST);
+    p.soldiers = (p.soldiers || 0) + 1;
+    this.addLog(`⚔️ ${p.name} verbuje vojaka (spolu ${p.soldiers}).`);
+    this.checkWin();
+  }
+
+  // Vojaci vyženú banditov z poľa hráča späť do hôr
+  chaseBandits(p) {
+    if (this.chased) throw new GameError('Banditov môžeš vyhnať len raz za ťah.');
+    if (!(p.soldiers > 0)) throw new GameError('Na vyhnanie banditov potrebuješ aspoň 1 vojaka.');
+    const h = this.bandits && this.hexes[this.bandits];
+    if (!h || !h.building || h.building.owner !== p.id) throw new GameError('Banditi nie sú na tvojom poli.');
+    const free = Object.keys(this.hexes).filter(k => {
+      const x = this.hexes[k];
+      return k !== this.bandits && x.revealed && this.isLand(x) && !(x.building && x.building.owner === p.id);
+    });
+    const mines = free.filter(k => this.hexes[k].terrain === 'bana');
+    const pool = mines.length ? mines : free;
+    if (!pool.length) throw new GameError('Banditov nie je kam vyhnať.');
+    this.bandits = pool[Math.floor(this.rng() * pool.length)];
+    this.chased = true;
+    const t = this.hexes[this.bandits];
+    this.addLog(`🗡️ Vojaci hráča ${p.name} vyháňajú banditov späť ${t.terrain === 'bana' ? 'do hôr' : 'preč'} (${TERRAIN_NAMES[t.terrain]} ${t.num}).`);
+  }
+
   checkWin() {
     this.updateRoad();
+    this.updateArmy();
     const p = this.current();
     if (p && this.vp(p) >= this.target) {
       this.phase = 'ended';
@@ -409,6 +458,8 @@ class Game {
       case 'cancelOffer': this.offer = null; return;
       case 'fulfill': return this.fulfill(p, a.id);
       case 'buyCard': return this.buyCard(p);
+      case 'recruit': return this.recruit(p);
+      case 'chaseBandits': return this.chaseBandits(p);
       case 'playCard': return this.playCard(p, a.id, a.hex);
       case 'endTurn': return this.endTurn(p);
       default: throw new GameError('Neznáma akcia.');
@@ -511,7 +562,7 @@ class Game {
         break;
       case 'pirati':
         for (const pl of this.players) {
-          if (this.count(pl.id, 'lighthouse')) continue;
+          if (this.count(pl.id, 'lighthouse') || (pl.soldiers || 0) >= PIRATE_GUARD) continue;
           const lost = this.loseRandom(pl, 1);
           if (this.cards({ res: lost })) this.addLog(`  ${pl.name} stráca ${fmtRes(lost)}.`);
         }
@@ -783,6 +834,7 @@ class Game {
     this.offer = null;
     this.market = false;
     this.cardPlayed = false;
+    this.chased = false;
     this.rolled = false;
     this.dice = null;
     this.turn = (this.turn + 1) % this.players.length;
@@ -827,6 +879,7 @@ class Game {
         res: p.id === pid ? { ...p.res } : null,
         vp: this.phase === 'lobby' ? 0 : this.vp(p),
         discoveries: p.discoveries,
+        soldiers: p.soldiers || 0,
         roadLen: this.phase === 'lobby' ? 0 : this.longestPath(p.id).length,
         contracts: p.contracts.slice(),
         devCount: (p.devCards || []).length,
@@ -853,6 +906,10 @@ class Game {
       roadHolder: this.roadHolder || null,
       roadPath: this.roadHolder ? this.longestPath(this.roadHolder) : [],
       roadMin: ROAD_MIN,
+      armyHolder: this.armyHolder || null,
+      armyMin: ARMY_MIN,
+      soldierCost: SOLDIER_COST,
+      chased: !!this.chased,
       lastEvent: this.lastEvent,
       lastRoll: this.lastRoll || null,
       bandits: this.bandits || null,
@@ -880,4 +937,4 @@ class Game {
   }
 }
 
-module.exports = { Game, GameError, RES, COSTS, LIMITS, CONTRACTS, EVENTS, TERRAIN_RES, MAX_PLAYERS, STORM_LIMIT, BANDIT_SUM, ROAD_MIN, CARDS, CARD_COST, generateMap, key };
+module.exports = { Game, GameError, RES, COSTS, LIMITS, CONTRACTS, EVENTS, TERRAIN_RES, MAX_PLAYERS, STORM_LIMIT, BANDIT_SUM, ROAD_MIN, ARMY_MIN, SOLDIER_COST, SOLDIER_MAX, CARDS, CARD_COST, generateMap, key };

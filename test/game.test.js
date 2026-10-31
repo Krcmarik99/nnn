@@ -338,3 +338,41 @@ test('najdlhšia cesta: reťaz 4+ stavieb na susedných poliach dá +2 body, pre
   g.updateRoad();
   assert.strictEqual(g.roadHolder, b.id);
 });
+
+test('vojsko: verbovanie, Najväčšie vojsko, vyhnanie banditov, ochrana pred pirátmi', () => {
+  const { g } = setupGame(2);
+  const p = g.current();
+  const o = g.players.find(x => x !== p);
+  roll(g, p);
+  p.res = { drevo: 5, kamen: 0, ruda: 5, obilie: 5, sol: 0 };
+  const vp = g.vp(p);
+  g.act(p.id, { type: 'recruit' });
+  g.act(p.id, { type: 'recruit' });
+  assert.strictEqual(p.soldiers, 2);
+  assert.deepStrictEqual([p.res.drevo, p.res.ruda, p.res.obilie], [5, 3, 3]);
+  assert.strictEqual(g.armyHolder, null, 'pod 3 vojakov titul nie je');
+  g.act(p.id, { type: 'recruit' });
+  assert.strictEqual(g.armyHolder, p.id);
+  assert.strictEqual(g.vp(p), vp + 2);
+  // rovnako veľké vojsko titul nevezme, väčšie áno
+  o.soldiers = 3; g.updateArmy();
+  assert.strictEqual(g.armyHolder, p.id);
+  o.soldiers = 4; g.updateArmy();
+  assert.strictEqual(g.armyHolder, o.id);
+
+  // vyhnanie banditov z vlastného poľa
+  const mineHex = Object.keys(g.hexes).find(k => g.hexes[k].building && g.hexes[k].building.owner === p.id);
+  g.bandits = mineHex;
+  g.act(p.id, { type: 'chaseBandits' });
+  assert.notStrictEqual(g.bandits, mineHex);
+  const t = g.hexes[g.bandits];
+  assert.ok(!(t.building && t.building.owner === p.id), 'banditi nesmú skončiť na mojom poli');
+  assert.throws(() => g.act(p.id, { type: 'chaseBandits' }), /raz za ťah|nie sú na tvojom/);
+
+  // piráti: hráč s 2+ vojakmi nič nestratí
+  p.res = { drevo: 3, kamen: 3, ruda: 3, obilie: 3, sol: 3 };
+  const before = g.cards(p);
+  g.eventDeck = ['pirati'];
+  g.drawEvent(p);
+  assert.strictEqual(g.cards(p), before);
+});

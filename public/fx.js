@@ -93,6 +93,10 @@ const FX = (() => {
       noise(t, 0.5, { vol: 0.25, freq: 900, q: 0.8 });
       tone(520, t + 0.15, 0.3, { vol: 0.08, to: 780 });
     },
+    army(t) {
+      [0, 0.12, 0.24, 0.42].forEach((d, i) => { noise(t + d, 0.08, { vol: 0.35, freq: 180, kind: 'lowpass', q: 0.8 }); tone(i === 3 ? 98 : 82, t + d, 0.12, { type: 'triangle', vol: 0.18 }); });
+      tone(523, t + 0.45, 0.25, { type: 'square', vol: 0.05 });
+    },
     card(t) {
       noise(t, 0.12, { vol: 0.25, freq: 3000, q: 0.7 });
       tone(700, t + 0.08, 0.12, { type: 'triangle', vol: 0.1, to: 1100 });
