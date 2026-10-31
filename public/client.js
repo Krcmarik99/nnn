@@ -80,13 +80,12 @@ function connect() {
       saveSession({ code: m.code, token: m.token });
       history.replaceState(null, '', '?party=' + m.code);
     } else if (m.t === 'state') {
-      S = m.state;
-      if (S.phase === 'play' && S.current !== S.me && mode) mode = null;
-      render();
+      onState(m.state);
     } else if (m.t === 'error') {
       toast(m.msg);
     } else if (m.t === 'chat') {
       chatLines.push(m);
+      if (!S || !me() || me().name !== m.name) FX.sound('chat');
       if (chatLines.length > 50) chatLines.shift();
       renderLog();
     } else if (m.t === 'rejoinFailed' || m.t === 'left') {
@@ -98,6 +97,60 @@ function connect() {
   };
   ws.onclose = () => setTimeout(connect, 1500);
 }
+
+// ---------- stav, zvuky a animácie ----------
+let rolling = false;
+let pendingState = null;
+let freshRoll = false;
+
+function onState(next) {
+  if (rolling) { pendingState = next; return; }
+  const prev = S;
+  const r = next.lastRoll;
+  const isNewRoll = r && prev && prev.phase !== 'lobby' && (!prev.lastRoll || prev.lastRoll.n !== r.n);
+  if (isNewRoll) {
+    rolling = true;
+    pendingState = next;
+    const who = next.players.find(p => p.id === r.by);
+    FX.rollDice(r.dice, r.by === next.me ? 'Hádžeš ty' : `Hádže ${who ? who.name : '…'}`, () => {
+      rolling = false;
+      const st = pendingState;
+      pendingState = null;
+      applyState(st, prev, true);
+    });
+    return;
+  }
+  applyState(next, prev, false);
+}
+
+function applyState(next, prev, afterRoll) {
+  S = next;
+  if (S.phase === 'play' && S.current !== S.me && mode) mode = null;
+  freshRoll = afterRoll;
+  render();
+  freshRoll = false;
+  if (!prev || prev.phase === 'lobby' && S.phase === 'lobby') return;
+  const cards = st => { const p = st.players.find(x => x.id === st.me); return p ? p.cards : 0; };
+  const sum = (st, f) => st.players.reduce((a, p) => a + (p[f] || 0), 0);
+  if (S.phase === 'ended' && prev.phase !== 'ended') return FX.sound('win');
+  if (afterRoll) {
+    const d = S.lastRoll.dice[1];
+    if (d === 1) FX.sound('event');
+    else if (d === 6) FX.sound('market');
+    if (cards(S) > cards(prev)) setTimeout(() => FX.sound('gain'), d === 1 || d === 6 ? 450 : 150);
+  } else if (prev.phase !== 'lobby') {
+    if (sum(S, 'camps') + sum(S, 'towns') * 2 + sum(S, 'lighthouses') > sum(prev, 'camps') + sum(prev, 'towns') * 2 + sum(prev, 'lighthouses')) FX.sound('build');
+    else if (sum(S, 'discoveries') > sum(prev, 'discoveries')) FX.sound('explore');
+    else if (S.log.at(-1) !== prev.log.at(-1) && S.log.at(-1).includes('prijíma obchod')) FX.sound('trade');
+  }
+  const myTurnNow = st => st.current === st.me && (st.phase === 'play' || st.phase === 'setup');
+  if (myTurnNow(S) && !myTurnNow(prev)) setTimeout(() => FX.sound('turn'), afterRoll ? 600 : 0);
+}
+
+const muteBtn = $('btnMute');
+const syncMute = () => { muteBtn.textContent = FX.isMuted() ? '🔇' : '🔊'; muteBtn.title = FX.isMuted() ? 'Zapnúť zvuk' : 'Vypnúť zvuk'; };
+muteBtn.onclick = () => { FX.setMuted(!FX.isMuted()); syncMute(); if (!FX.isMuted()) FX.sound('turn'); };
+syncMute();
 
 function send(m) {
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(m));
@@ -398,9 +451,9 @@ function renderBoard() {
       <polygon class="edge" points="${hexPts(x, y)}" fill="none" stroke="#0b1520" stroke-width="2.5"/>`;
     if (h.revealed && h.terrain !== 'more') {
       const hot = h.num === lastNum && S.rolled;
-      inner += `<ellipse cx="${x}" cy="${y + 4}" rx="15" ry="14" fill="#0005"/>
+      inner += `<g class="token${hot && freshRoll ? ' pop' : ''}"><ellipse cx="${x}" cy="${y + 4}" rx="15" ry="14" fill="#0005"/>
         <circle cx="${x}" cy="${y + 2}" r="14" fill="${hot ? '#f2a541' : '#f7f0dc'}" stroke="${hot ? '#fff' : '#8b6f47'}" stroke-width="2"/>
-        <text x="${x}" y="${y + 8}" text-anchor="middle" font-size="17" font-weight="800" fill="#2b2118" font-family="Georgia, serif">${h.num}</text>`;
+        <text x="${x}" y="${y + 8}" text-anchor="middle" font-size="17" font-weight="800" fill="#2b2118" font-family="Georgia, serif">${h.num}</text></g>`;
     }
     tiles += `<g class="hex${valid.has(h.k) ? ' valid' : ''}" data-k="${h.k}">${inner}</g>`;
     if (valid.has(h.k)) marks += `<polygon class="hl" points="${hexPts(x, y, R - 2)}"/>`;

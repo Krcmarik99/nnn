@@ -50,7 +50,14 @@
   <div class="layout">
     <div class="boardWrap">
       <div id="status" class="status"></div>
-      <svg id="board" viewBox="0 0 100 100"></svg>
+      <button id="btnMute" class="mute" title="Zvuk">🔊</button>
+      <div class="boardArea">
+        <svg id="board" viewBox="0 0 100 100"></svg>
+        <div id="diceOverlay" hidden>
+          <div class="dice"><div class="die prod"></div><div class="die ev"></div></div>
+          <div class="cap"></div>
+        </div>
+      </div>
       <div id="legend" class="legend"></div>
     </div>
     <aside class="side">
@@ -69,6 +76,7 @@
   </div>
 </section>
 
+<script src="fx.js"></script>
 <script src="client.js"></script>
 </body>
 </html>

@@ -335,6 +335,8 @@ class Game {
     const prod = 1 + Math.floor(this.rng() * 6);
     const ev = 1 + Math.floor(this.rng() * 6);
     this.dice = [prod, ev];
+    this.rollCount = (this.rollCount || 0) + 1;
+    this.lastRoll = { n: this.rollCount, by: p.id, dice: [prod, ev] };
     this.rolled = true;
     this.lastEvent = null;
     this.addLog(`${p.name} hádže: produkcia ${prod}, udalosť ${ev}.`);
@@ -572,6 +574,7 @@ class Game {
       offer: this.offer,
       explorer: this.explorer,
       lastEvent: this.lastEvent,
+      lastRoll: this.lastRoll || null,
       winner: this.winner,
       bankRate: me ? this.bankRate(me) : 4,
       contracts: this.openContracts.map(id => CONTRACTS.find(c => c.id === id)),
