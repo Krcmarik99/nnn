@@ -15,6 +15,11 @@ npm test           # testy herného enginu
 2. Ostatným pošle 5-znakový kód alebo odkaz (`...?party=KOD`).
 3. Keď sú všetci v lobby, zakladateľ zvolí počet bodov na výhru a spustí hru.
 
+**Hráš sám?** V lobby klikni na **🤖 Pridať AI hráča** (1–4 boti) a spusti hru.
+AI hráči stavajú, objavujú, plnia zákazky, obchodujú s bankou a občas ponúknu
+výmenu aj tebe. Tvoje ponuky prijmú, ak im pomôžu. Keď nie je pripojený nikto
+zo živých hráčov, boti čakajú.
+
 Pri obnovení stránky alebo výpadku spojenia sa hráč automaticky vráti do svojej hry.
 Ak je hráč na ťahu odpojený, ostatní môžu jeho ťah preskočiť.
 
@@ -51,6 +56,7 @@ otvoriť `http://<IP-tvojho-počítača>:3000`.
 ## Štruktúra
 
 - `src/game.js` – herný engine (pravidlá, autoritatívne na serveri)
-- `server.js` – HTTP + WebSocket server, správa párty
+- `src/bot.js` – AI hráči
+- `server.js` – HTTP + WebSocket server, správa párty a ťahy AI
 - `public/` – klient (HTML, CSS, JS, mapa v SVG)
 - `test/` – testy enginu

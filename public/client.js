@@ -178,6 +178,7 @@ $('btnJoin').onclick = () => {
   if (!c) return toast('Zadaj kód párty.');
   if (n) send({ t: 'join', code: c, name: n });
 };
+$('btnAddBot').onclick = () => send({ t: 'addBot' });
 $('btnStart').onclick = () => send({ t: 'start', target: $('target').value });
 $('btnLeave').onclick = () => send({ t: 'leave' });
 $('btnCopy').onclick = () => {
@@ -212,12 +213,15 @@ function renderLobby() {
   $('shareLink').value = `${location.origin}${location.pathname}?party=${S.code}`;
   $('lobbyPlayers').innerHTML = S.players.map(p =>
     `<li class="${p.online ? '' : 'off'}"><span class="dot" style="background:${p.color}"></span>${esc(p.name)}
-     ${p.id === S.host ? '<small class="muted">(zakladateľ)</small>' : ''}${p.id === S.me ? ' <small class="muted">(ty)</small>' : ''}</li>`).join('');
+     ${p.id === S.host ? '<small class="muted">(zakladateľ)</small>' : ''}${p.id === S.me ? ' <small class="muted">(ty)</small>' : ''}
+     ${p.bot && S.host === S.me ? `<button class="ghost small" data-rmbot="${p.id}" title="Odobrať">✕</button>` : ''}</li>`).join('');
+  $('lobbyPlayers').querySelectorAll('[data-rmbot]').forEach(b => { b.onclick = () => send({ t: 'removeBot', pid: b.dataset.rmbot }); });
   const host = S.host === S.me;
+  $('btnAddBot').disabled = S.players.length >= 5;
   $('hostControls').hidden = !host;
   $('waitHost').hidden = host;
   $('btnStart').disabled = S.players.length < 2;
-  $('btnStart').textContent = S.players.length < 2 ? 'Čaká sa na ďalších hráčov…' : 'Spustiť hru';
+  $('btnStart').textContent = S.players.length < 2 ? 'Pridaj hráča alebo AI…' : 'Spustiť hru';
 }
 
 const me = () => S.players.find(p => p.id === S.me);

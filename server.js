@@ -6,6 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const { Game, GameError } = require('./src/game');
+const bot = require('./src/bot');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC = path.join(__dirname, 'public');
@@ -51,13 +52,64 @@ function connected(room, pid) {
 
 function broadcast(room) {
   room.lastActive = Date.now();
+  scheduleBots(room);
   for (const [pid, set] of room.sockets) {
     const state = room.game.view(pid);
     state.code = room.code;
     state.host = room.host;
-    for (const p of state.players) p.online = connected(room, p.id);
+    for (const p of state.players) p.online = p.bot || connected(room, p.id);
     for (const ws of set) send(ws, { t: 'state', state });
   }
+}
+
+// ---------- AI hráči ----------
+function scheduleBots(room, delay) {
+  const g = room.game;
+  if (room.botTimer || (g.phase !== 'setup' && g.phase !== 'play')) return;
+  const cur = g.current();
+  const botTurn = cur && cur.bot;
+  const botCanAccept = g.offer && g.players.some(p => p.bot && p.id !== g.offer.from);
+  if (!botTurn && !botCanAccept) return;
+  if (delay == null) {
+    // po hode počkaj, kým u hráčov dobehne animácia kociek
+    const newRoll = g.lastRoll && g.lastRoll.n !== room.seenRoll;
+    if (newRoll) room.seenRoll = g.lastRoll.n;
+    delay = newRoll ? 2600 : g.phase === 'setup' ? 900 : 1100;
+  }
+  room.botTimer = setTimeout(() => {
+    room.botTimer = null;
+    botStep(room);
+  }, delay);
+}
+
+function botStep(room) {
+  const g = room.game;
+  if (!rooms.has(room.code) || (g.phase !== 'setup' && g.phase !== 'play')) return;
+  // keď nie je pripojený nikto zo živých hráčov, boti čakajú
+  if (!g.players.some(p => !p.bot && connected(room, p.id))) return;
+  const cur = g.current();
+  try {
+    if (g.offer) {
+      const taker = g.players.find(p => p.bot && bot.wantsOffer(g, p));
+      if (taker) { g.act(taker.id, { type: 'acceptOffer' }); return broadcast(room); }
+    }
+    if (!cur || !cur.bot) return;
+    room.botMem ||= {};
+    const mem = (room.botMem[cur.id] ||= {});
+    const a = bot.decide(g, cur, mem);
+    if (a === 'wait') return scheduleBots(room, 1000);
+    g.act(cur.id, a);
+  } catch (e) {
+    if (!(e instanceof GameError)) console.error('Chyba AI:', e);
+    // záchrana: AI nesmie zaseknúť hru
+    try {
+      if (cur && cur.bot && g.current() === cur) {
+        if (g.phase === 'setup') g.forceSkip();
+        else { if (!g.rolled) g.act(cur.id, { type: 'roll' }); g.offer = null; g.act(cur.id, { type: 'endTurn' }); }
+      }
+    } catch (e2) { console.error('Chyba AI (záchrana):', e2); }
+  }
+  broadcast(room);
 }
 
 function attach(ws, room, pid, token) {
@@ -117,12 +169,23 @@ function handle(ws, msg) {
       if (ws.pid !== room.host) throw new GameError('Hru môže spustiť len zakladateľ párty.');
       g.start(msg.target);
       return broadcast(room);
+    case 'addBot':
+      if (ws.pid !== room.host) throw new GameError('AI hráčov môže pridať len zakladateľ párty.');
+      g.addPlayer(bot.botName(g), { bot: true });
+      return broadcast(room);
+    case 'removeBot': {
+      if (ws.pid !== room.host) throw new GameError('AI hráčov môže odobrať len zakladateľ párty.');
+      const p = g.player(msg.pid);
+      if (!p || !p.bot) throw new GameError('Taký AI hráč neexistuje.');
+      g.removePlayer(p.id);
+      return broadcast(room);
+    }
     case 'act':
       g.act(ws.pid, msg.action);
       return broadcast(room);
     case 'skip': {
       const cur = g.current();
-      if (!cur || connected(room, cur.id)) throw new GameError('Ťah sa dá preskočiť len odpojenému hráčovi.');
+      if (!cur || cur.bot || connected(room, cur.id)) throw new GameError('Ťah sa dá preskočiť len odpojenému hráčovi.');
       g.forceSkip();
       return broadcast(room);
     }
@@ -131,8 +194,9 @@ function handle(ws, msg) {
         g.removePlayer(ws.pid);
         for (const [t, p] of room.tokens) if (p === ws.pid) room.tokens.delete(t);
         room.sockets.delete(ws.pid);
-        if (room.host === ws.pid && g.players.length) room.host = g.players[0].id;
-        if (!g.players.length) rooms.delete(room.code);
+        const humans = g.players.filter(p => !p.bot);
+        if (room.host === ws.pid && humans.length) room.host = humans[0].id;
+        if (!humans.length) rooms.delete(room.code);
         ws.room = null;
         send(ws, { t: 'left' });
         return broadcast(room);
