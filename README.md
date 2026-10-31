@@ -76,6 +76,9 @@ otvoriť `http://<IP-tvojho-počítača>:3000`.
 - **Prístav** (2 drevo, ruda, obilie): na pobrežnej stavbe, 1 b., max. 2. Hráči s prístavom si
   môžu posielať **námorné ponuky kedykoľvek, aj mimo svojho ťahu**. Ponuka platí jedno celé kolo,
   každý hráč môže mať naraz jednu a prijať ju môže len hráč s prístavom.
+- **Vojaci a Najväčšie vojsko** (vojak = ruda + obilie, max. 10): kto má najviac vojakov (aspoň 3),
+  získa +2 body; titul prevezme len hráč s väčším vojskom. Aspoň 2 vojaci chránia pred pirátmi.
+  S aspoň 1 vojakom môžeš raz za ťah vyhnať banditov zo svojho poľa späť do hôr.
 - **Najdlhšia cesta:** tvoje stavby na susedných poliach tvoria cestu (na mape sú spojené čiarou).
   Kto má najdlhšiu reťaz stavieb za sebou (aspoň 4), získa +2 body; titul prevezme len hráč s dlhšou cestou.
 - **Rozvojové karty** (obilie, ruda, soľ): náhodná karta z balíčka (18 kariet). Hrá sa po hode,

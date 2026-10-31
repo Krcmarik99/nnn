@@ -3,7 +3,7 @@
 // Jednoduchá AI pre Súostrovie. Každé volanie decide() vráti jednu akciu,
 // aby server mohol ťahy botov prehrávať postupne a s prestávkami.
 
-const { RES, COSTS, LIMITS, CONTRACTS, TERRAIN_RES, STORM_LIMIT, CARD_COST } = require('./game');
+const { RES, COSTS, LIMITS, CONTRACTS, TERRAIN_RES, STORM_LIMIT, CARD_COST, SOLDIER_COST, SOLDIER_MAX, ARMY_MIN } = require('./game');
 
 const BOT_NAMES = ['Anka', 'Boris', 'Cyril', 'Dana', 'Emil', 'Fero', 'Gabika', 'Hugo'];
 const OFFER_WAIT_MS = 6000;
@@ -115,6 +115,14 @@ function options(g, p) {
     const ports = g.count(p.id, 'port');
     if (coast.length) opts.push({ action: { type: 'build', kind: 'port', hex: coast[0][0] }, cost: COSTS.port, pri: ports ? 1.8 : lv(p).valueAware ? 0.6 : 0.9 });
   }
+  if ((p.soldiers || 0) < SOLDIER_MAX) {
+    const mine = p.soldiers || 0;
+    const maxOther = Math.max(0, ...g.players.filter(o => o !== p).map(o => o.soldiers || 0));
+    // ťažký bot verbuje cielene, keď môže získať alebo udržať Najväčšie vojsko
+    const contest = mine + 1 > maxOther && g.armyHolder !== p.id;
+    const pri = lv(p).valueAware ? (contest ? 0.5 : 1.2) : 1.0;
+    opts.push({ action: { type: 'recruit' }, cost: SOLDIER_COST, pri });
+  }
   if (g.cardDeck && g.cardDeck.length) {
     opts.push({ action: { type: 'buyCard' }, cost: CARD_COST, pri: lv(p).valueAware ? 0.6 : 1.2 });
   }
@@ -222,7 +230,12 @@ function decide(g, p, mem) {
     return !humanCan || Date.now() - mem.offerAt > OFFER_WAIT_MS ? { type: 'cancelOffer' } : 'wait';
   }
 
-  // 0) Rozvojová karta
+  // 0) Vyhnať banditov z vlastného poľa
+  if (!g.chased && (p.soldiers || 0) > 0 && g.bandits && g.hexes[g.bandits] && own(g.hexes[g.bandits], p)) {
+    return { type: 'chaseBandits' };
+  }
+
+  // 0b) Rozvojová karta
   const cp = cardPlay(g, p);
   if (cp) return cp;
 

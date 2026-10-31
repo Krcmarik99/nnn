@@ -37,6 +37,7 @@ const RULES = `
   <li>🗼 <b>Maják</b> (2 kameň, drevo, soľ) – na pobrežnej stavbe, 1 bod, výmena s bankou 3:1 a ochrana pred pirátmi. Max. 3.</li>
   </ul></li>
 <li>⚓ <b>Prístav</b> (2 drevo, ruda, obilie) – na pobrežnej stavbe, 1 bod. Max. 2. Hráči s prístavom si môžu posielať <b>námorné ponuky kedykoľvek</b>, aj mimo svojho ťahu. Ponuka platí jedno celé kolo a prijať ju môže len hráč s prístavom.</li>
+<li>⚔️ <b>Vojaci</b> (ruda, obilie): kto má najviac vojakov (aspoň 3), má <b>Najväčšie vojsko</b> a <b>+2 body</b>. Titul prevezme len hráč s väčším vojskom. Aspoň 2 vojaci chránia pred pirátmi. S aspoň 1 vojakom môžeš raz za ťah <b>vyhnať banditov</b> zo svojho poľa späť do hôr.</li>
 <li>🛤️ <b>Najdlhšia cesta</b>: tvoje stavby na susedných poliach tvoria cestu. Kto má najdlhšiu reťaz stavieb za sebou (aspoň 4), získa <b>+2 body</b>. Titul prevezme len hráč s dlhšou cestou.</li>
 <li>🎴 <b>Rozvojové karty</b> (obilie, ruda, soľ): kúpiš náhodnú kartu z balíčka. Zahrať ju môžeš po hode, najskôr v ďalšom ťahu, a len jednu za ťah. Karty: 🗺️ Mapa pokladu, 🛒 Kupec, 🌾 Bohatá úroda, 🔨 Stavitelia, 🏴‍☠️ Pašeráci, 📜 Kráľovská listina, 🧭 Lodný kompas.</li>
 <li>🧭 <b>Výprava</b> (drevo, obilie): odkry zahalené políčko vedľa svojej stavby. Ak je to pevnina, dostaneš 1 jej surovinu. Kto má najviac objavov (aspoň 3), je <b>Veľký objaviteľ</b> (+2 body).</li>
@@ -151,6 +152,7 @@ function applyState(next, prev, afterRoll) {
     else if (prev.bandits && S.bandits !== prev.bandits) FX.sound('bandits');
     else if (S.log.at(-1) !== prev.log.at(-1) && /prijíma (námorný )?obchod/.test(S.log.at(-1))) FX.sound('trade');
     if (S.log.at(-1) !== prev.log.at(-1) && / hrá kartu | kupuje rozvojovú kartu/.test(S.log.at(-1))) FX.sound('card');
+    if (S.log.at(-1) !== prev.log.at(-1) && /verbuje vojaka|vyháňajú banditov/.test(S.log.at(-1))) FX.sound('army');
   }
   const myTurnNow = st => st.current === st.me && (st.phase === 'play' || st.phase === 'setup');
   if (myTurnNow(S) && !myTurnNow(prev)) setTimeout(() => FX.sound('turn'), afterRoll ? 600 : 0);
@@ -589,7 +591,7 @@ function renderPlayers() {
     <div class="prow ${p.id === S.current ? 'cur' : ''} ${p.online ? '' : 'off'}">
       <span class="dot" style="background:${p.color}"></span>
       <span class="nm">${esc(p.name)}${p.bot ? ` <small>${(LEVEL_NAMES[p.level] || '').split(' ')[0]}</small>` : ''}${p.id === S.me ? ' (ty)' : ''}${p.online ? '' : ' 📴'}<br>
-        <small class="stats">🃏 ${p.cards} · ⛺${p.camps} 🏰${p.towns} 🗼${p.lighthouses} ⚓${p.ports || 0} · 🧭${p.discoveries}${S.explorer === p.id ? ' 🏅' : ''} · 📜${p.contracts.length} · 🎴${p.devCount || 0} · 🛤️${p.roadLen || 0}${S.roadHolder === p.id ? ' ⭐' : ''}</small></span>
+        <small class="stats">🃏 ${p.cards} · ⛺${p.camps} 🏰${p.towns} 🗼${p.lighthouses} ⚓${p.ports || 0} · 🧭${p.discoveries}${S.explorer === p.id ? ' 🏅' : ''} · 📜${p.contracts.length} · 🎴${p.devCount || 0} · 🛤️${p.roadLen || 0}${S.roadHolder === p.id ? ' ⭐' : ''} · ⚔️${p.soldiers || 0}${S.armyHolder === p.id ? ' 🎖️' : ''}</small></span>
       <span class="vp">${p.vp}</span>
     </div>`).join('')
     + (S.phase !== 'ended' && pl(S.current) && !pl(S.current).online && S.current !== S.me
@@ -665,11 +667,16 @@ function renderActions() {
     <button data-mode="lighthouse" ${dis(COSTS.lighthouse, m.lighthouses >= 3)} class="${mode === 'lighthouse' ? 'active' : ''}">🗼 Maják<small>${costStr(COSTS.lighthouse)}</small></button>
     <button data-mode="port" ${dis(COSTS.port, (m.ports || 0) >= 2)} class="${mode === 'port' ? 'active' : ''}">⚓ Prístav<small>${costStr(COSTS.port)}</small></button>
     <button data-mode="explore" ${dis(COSTS.explore)} class="${mode === 'explore' ? 'active' : ''}">🧭 Výprava<small>${costStr(COSTS.explore)}</small></button>
+    <button id="btnRecruit" ${dis(S.soldierCost || {}, (m.soldiers || 0) >= 10)}>⚔️ Vojak<small>${costStr(S.soldierCost || {})}</small></button>
+    ${S.rolled && !S.chased && (m.soldiers || 0) > 0 && S.bandits && (hexMap()[S.bandits] || {}).building && hexMap()[S.bandits].building.owner === S.me
+      ? '<button id="btnChase" class="wide">🗡️ Vyhnať banditov z môjho poľa</button>' : ''}
     <button id="btnBuyCard" ${dis(S.cardCost || {}, !S.cardsLeft)} title="Zostáva ${S.cardsLeft || 0} kariet">🎴 Rozvojová karta<small>${costStr(S.cardCost || {})}</small></button>
     ${S.rolled ? '<button id="btnEnd" class="primary wide">Ukončiť ťah ➜</button>' : ''}
   </div>`;
   if ($('btnRoll')) $('btnRoll').onclick = () => act({ type: 'roll' });
   if ($('btnBuyCard')) $('btnBuyCard').onclick = () => act({ type: 'buyCard' });
+  if ($('btnRecruit')) $('btnRecruit').onclick = () => act({ type: 'recruit' });
+  if ($('btnChase')) $('btnChase').onclick = () => act({ type: 'chaseBandits' });
   if ($('btnEnd')) $('btnEnd').onclick = () => { mode = null; act({ type: 'endTurn' }); };
   p.querySelectorAll('[data-mode]').forEach(b => {
     b.onclick = () => {
