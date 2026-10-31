@@ -19,7 +19,9 @@ test('hra sa dá uložiť a obnoviť uprostred partie', () => {
   const data = JSON.parse(JSON.stringify(g.serialize()));
   const r = Game.restore(data);
   assert.deepStrictEqual(r.view(g.players[0].id), g.view(g.players[0].id));
-  // obnovená hra pokračuje
+  assert.strictEqual(r.bandits, g.bandits);
+  // obnovená hra pokračuje (vrátane prípadného presunu banditov po súčte 7)
+  if (r.pendingBandits) r.act(r.current().id, { type: 'moveBandits', hex: null });
   r.act(r.current().id, { type: 'endTurn' });
   r.act(r.current().id, { type: 'roll' });
   assert.strictEqual(r.phase, 'play');
