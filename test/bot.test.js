@@ -47,8 +47,9 @@ test('bot prijme len výhodnú ponuku', () => {
   const b = g.addPlayer('🤖 Test', { bot: true });
   g.start(12);
   while (g.phase === 'setup') g.forceSkip();
-  if (g.current().id !== h) { g.act(g.current().id, { type: 'roll' }); g.act(g.current().id, { type: 'endTurn' }); }
-  g.act(h, { type: 'roll' });
+  const roll = id => { g.act(id, { type: 'roll' }); if (g.pendingBandits) g.act(id, { type: 'moveBandits', hex: null }); };
+  if (g.current().id !== h) { roll(g.current().id); g.act(g.current().id, { type: 'endTurn' }); }
+  roll(h);
   const hp = g.player(h), bp = g.player(b);
   hp.res = { drevo: 0, kamen: 0, ruda: 0, obilie: 0, sol: 5 };
   bp.res = { drevo: 0, kamen: 0, ruda: 0, obilie: 0, sol: 0 };

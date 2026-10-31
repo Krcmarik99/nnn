@@ -24,7 +24,7 @@ Každý bot má vlastnú obtiažnosť (vyberá sa pri pridaní, dá sa zmeniť v
 - 😊 **Ľahká** – stavia náhodne, s bankou mení až pri plnej ruke, prijme aj neutrálnu výmenu.
 - 🙂 **Stredná** – rozumne plánuje, chráni sa pred búrkou, nepomáha lídrovi tesne pred výhrou.
 - 😈 **Ťažká** – lepšie vyberá políčka a ciele, uprednostňuje mestá a hodnotné zákazky,
-  nevynechá víťazný ťah a je opatrnejší pri obchodoch.
+  nevynechá víťazný ťah, nestavia pod banditov a posiela ich na polia lídra.
 
 Pri obnovení stránky alebo výpadku spojenia sa hráč automaticky vráti do svojej hry.
 Ak je hráč na ťahu odpojený, ostatní môžu jeho ťah preskočiť.
@@ -70,6 +70,8 @@ otvoriť `http://<IP-tvojho-počítača>:3000`.
 - **Príprava:** každý položí 2 tábory (poradie tam a späť) a dostane surovinu z každého z nich.
 - **Ťah:** hoď **kockou produkcie** a **kockou udalostí**. Stavby na políčkach s padnutým číslom produkujú (tábor 1, mesto 2).
   Na kocke udalostí 1 sa ťahá karta udalosti, 6 znamená Trhový deň (výmena s bankou 2:1).
+- **Banditi:** začínajú v horách (na baníckom poli). Keď je súčet oboch kociek 7, hráč na ťahu
+  ich môže presunúť na ľubovoľnú odkrytú pevninu alebo nechať na mieste. Pole s banditmi nič neprodukuje.
 - **Stavby** (jedna na políčko): Tábor 1 b., Mesto 2 b., Maják 1 b. (na pobreží, výmena 3:1, ochrana pred pirátmi).
 - **Výprava:** odkryje zahalené políčko vedľa tvojej stavby. Najviac objavov (aspoň 3) = Veľký objaviteľ (+2 b.).
 - **Zákazky:** odovzdaj suroviny za 1–2 body.

@@ -36,6 +36,7 @@ const RULES = `
   <li>🗼 <b>Maják</b> (2 kameň, drevo, soľ) – na pobrežnej stavbe, 1 bod, výmena s bankou 3:1 a ochrana pred pirátmi. Max. 3.</li>
   </ul></li>
 <li>🧭 <b>Výprava</b> (drevo, obilie): odkry zahalené políčko vedľa svojej stavby. Ak je to pevnina, dostaneš 1 jej surovinu. Kto má najviac objavov (aspoň 3), je <b>Veľký objaviteľ</b> (+2 body).</li>
+<li>🦹 <b>Banditi</b> začínajú v horách (na baníckom poli). Keď je súčet oboch kociek <b>7</b>, hráč na ťahu ich môže presunúť na ľubovoľnú odkrytú pevninu (alebo nechať na mieste). Pole s banditmi nič neprodukuje.</li>
 <li>📜 <b>Zákazky:</b> tri sú vždy vyložené. Odovzdaj požadované suroviny a získaj 1–2 body.</li>
 <li>🤝 <b>Obchod:</b> s bankou 4:1 (s majákom 3:1, v Trhový deň 2:1), alebo navrhni výmenu ostatným hráčom – ktokoľvek ju môže prijať.</li>
 </ul>`;
@@ -136,12 +137,14 @@ function applyState(next, prev, afterRoll) {
   if (S.phase === 'ended' && prev.phase !== 'ended') return FX.sound('win');
   if (afterRoll) {
     const d = S.lastRoll.dice[1];
-    if (d === 1) FX.sound('event');
+    if (S.lastRoll.dice[0] + d === 7) FX.sound('bandits');
+    else if (d === 1) FX.sound('event');
     else if (d === 6) FX.sound('market');
     if (cards(S) > cards(prev)) setTimeout(() => FX.sound('gain'), d === 1 || d === 6 ? 450 : 150);
   } else if (prev.phase !== 'lobby') {
     if (sum(S, 'camps') + sum(S, 'towns') * 2 + sum(S, 'lighthouses') > sum(prev, 'camps') + sum(prev, 'towns') * 2 + sum(prev, 'lighthouses')) FX.sound('build');
     else if (sum(S, 'discoveries') > sum(prev, 'discoveries')) FX.sound('explore');
+    else if (prev.bandits && S.bandits !== prev.bandits) FX.sound('bandits');
     else if (S.log.at(-1) !== prev.log.at(-1) && S.log.at(-1).includes('prijíma obchod')) FX.sound('trade');
   }
   const myTurnNow = st => st.current === st.me && (st.phase === 'play' || st.phase === 'setup');
@@ -252,9 +255,15 @@ function renderStatus() {
     txt = (myTurn() ? (S.rolled ? 'Tvoj ťah' : 'Tvoj ťah – hoď kockami!') : `Na ťahu: ${esc(cur.name)}`) + dice
       + (S.market ? ' · 🛒 Trhový deň' : '');
   }
-  if (mode && myTurn()) txt += ` <br><small>Vyber políčko na mape (${modeName(mode)}). <a href="#" id="cancelMode">Zrušiť</a></small>`;
+  if (S.pendingBandits && S.phase === 'play') {
+    txt += myTurn()
+      ? ` <br><b>🦹 Súčet 7! Ťukni na pole, kam presunieš banditov.</b> <a href="#" id="stayBandits">Nechať na mieste</a>`
+      : ` <br><small>🦹 ${esc(cur.name)} presúva banditov…</small>`;
+  } else if (mode && myTurn()) txt += ` <br><small>Vyber políčko na mape (${modeName(mode)}). <a href="#" id="cancelMode">Zrušiť</a></small>`;
   st.innerHTML = txt + (S.lastEvent ? `<div class="event">⚡ <b>${esc(S.lastEvent.name)}:</b> ${esc(S.lastEvent.text)}</div>` : '');
   st.className = 'status' + (myTurn() ? ' mine' : '');
+  const sb = $('stayBandits');
+  if (sb) sb.onclick = e => { e.preventDefault(); act({ type: 'moveBandits', hex: null }); };
   const c = $('cancelMode');
   if (c) c.onclick = e => { e.preventDefault(); mode = null; render(); };
 }
@@ -277,7 +286,7 @@ function validHexes() {
   const adjOwn = h => nbrs(h).some(own);
   const land = h => h.revealed && h.terrain !== 'more';
   const out = new Set();
-  const m2 = S.phase === 'setup' ? 'place' : mode;
+  const m2 = S.phase === 'setup' ? 'place' : S.pendingBandits ? 'bandits' : mode;
   for (const h of S.hexes) {
     let ok = false;
     if (m2 === 'place') ok = land(h) && !h.building;
@@ -285,6 +294,7 @@ function validHexes() {
     else if (m2 === 'town') ok = own(h) && h.building.type === 'camp';
     else if (m2 === 'lighthouse') ok = own(h) && !h.lighthouse && h.coastal;
     else if (m2 === 'explore') ok = !h.revealed && adjOwn(h);
+    else if (m2 === 'bandits') ok = land(h) && h.k !== S.bandits;
     if (ok) out.add(h.k);
   }
   return out;
@@ -442,6 +452,21 @@ function lighthouseSvg(x, y, c) {
   </g>`;
 }
 
+let lastBandits;
+function banditSvg(x, y, fresh) {
+  return `<g class="bandit${fresh ? ' drop' : ''}" transform="translate(${x},${y})">
+    <ellipse cx="1" cy="13" rx="12" ry="3.2" fill="#0008"/>
+    <path d="M-11,13 Q-11,-1 0,-5 Q11,-1 11,13Z" fill="#2b2d31" stroke="#000" stroke-width="1.3"/>
+    <path d="M0,-5 Q11,-1 11,13 L4,13 Q5,2 0,-5Z" fill="#0004"/>
+    <circle cx="0" cy="-9" r="7.5" fill="#3a3d42" stroke="#000" stroke-width="1.3"/>
+    <ellipse cx="0" cy="-7.5" rx="4.6" ry="4.2" fill="#121315"/>
+    <circle cx="-1.8" cy="-8.4" r="1.1" fill="#ffcc33"/><circle cx="1.8" cy="-8.4" r="1.1" fill="#ffcc33"/>
+    <path d="M-5,-5.2 Q0,-2.2 5,-5.2 L4,-3 Q0,-0.8 -4,-3Z" fill="#b23a48"/>
+    <circle cx="9" cy="8" r="4" fill="#8d6e3f" stroke="#000" stroke-width="1"/>
+    <path d="M7.4,5 l1.6,-2 l1.6,2" fill="none" stroke="#000" stroke-width="1"/>
+  </g>`;
+}
+
 function renderBoard() {
   const svg = $('board');
   const R = HEX_R;
@@ -454,7 +479,9 @@ function renderBoard() {
   svg.setAttribute('viewBox', `${minX} ${minY} ${Math.max(...xs) - minX + pad} ${Math.max(...ys) - minY + pad}`);
   const valid = validHexes();
   const lastNum = S.dice ? S.dice[0] : null;
-  let tiles = '', pieces = '', marks = '';
+  let tiles = '', pieces = '', marks = '', banditPiece = '';
+  const banditMoved = lastBandits !== undefined && lastBandits !== S.bandits;
+  lastBandits = S.bandits;
   for (const h of S.hexes) {
     const [x, y] = pos(h);
     const id = h.revealed ? h.terrain : 'hmla';
@@ -475,12 +502,17 @@ function renderBoard() {
       pieces += h.building.type === 'camp' ? campSvg(x, y + 26, c) : townSvg(x, y + 26, c);
       if (h.lighthouse) pieces += lighthouseSvg(x + 27, y + 12, c);
     }
+    if (h.k === S.bandits) {
+      marks = `<polygon points="${hexPts(x, y, R - 1)}" fill="#000" fill-opacity=".38"/>` + marks;
+      banditPiece = banditSvg(x, y - 22, banditMoved);
+    }
   }
-  svg.innerHTML = TILE_DEFS + `<g filter="url(#f-shadow)">${tiles}</g><g pointer-events="none">${marks}${pieces}</g>`;
+  svg.innerHTML = TILE_DEFS + `<g filter="url(#f-shadow)">${tiles}</g><g pointer-events="none">${marks}${pieces}${banditPiece}</g>`;
   svg.querySelectorAll('.hex.valid').forEach(g => {
     g.onclick = () => {
       const k = g.dataset.k;
       if (S.phase === 'setup') act({ type: 'place', hex: k });
+      else if (S.pendingBandits) act({ type: 'moveBandits', hex: k });
       else if (mode === 'explore') act({ type: 'explore', hex: k });
       else act({ type: 'build', kind: mode, hex: k });
       mode = null;
@@ -488,7 +520,7 @@ function renderBoard() {
   });
   $('legend').innerHTML = Object.values(TERRAIN).map(t =>
     `<span><i style="background:${t.color}"></i>${t.name}${t.res ? ' ' + RES_ICON[t.res] : ''}</span>`).join('')
-    + '<span>⛺ tábor</span><span>🏰 mesto</span><span>🗼 maják</span>';
+    + '<span>⛺ tábor</span><span>🏰 mesto</span><span>🗼 maják</span><span>🦹 banditi</span>';
 }
 
 function renderPlayers() {
@@ -521,6 +553,12 @@ function renderActions() {
   }
   if (!myTurn() || S.phase === 'setup') {
     p.innerHTML = `<h3>Akcie</h3><p class="muted">${myTurn() ? 'Polož tábor na mapu.' : 'Počkaj na svoj ťah.'}</p>`;
+    return;
+  }
+  if (S.pendingBandits) {
+    p.innerHTML = `<h3>Akcie</h3><p>🦹 <b>Súčet 7!</b> Ťukni na pole na mape, kam presunieš banditov.
+      Pole s banditmi nič neprodukuje.</p><button id="btnStay" style="width:100%">Nechať banditov na mieste</button>`;
+    $('btnStay').onclick = () => act({ type: 'moveBandits', hex: null });
     return;
   }
   const dis = (cost, extra) => (!S.rolled || !canPay(cost) || extra) ? 'disabled' : '';
