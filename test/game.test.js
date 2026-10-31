@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { Game, GameError, generateMap, RES } = require('../src/game');
+const { Game, GameError, generateMap, RES, TERRAIN_RES } = require('../src/game');
 
 function seeded(seed = 42) {
   return () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
@@ -375,4 +375,24 @@ test('vojsko: verbovanie, Najväčšie vojsko, vyhnanie banditov, ochrana pred p
   g.eventDeck = ['pirati'];
   g.drawEvent(p);
   assert.strictEqual(g.cards(p), before);
+});
+
+test('lepší kurz s bankou: prístav dá 2:1 na surovinu svojho poľa', () => {
+  const { g } = setupGame(2);
+  const p = g.current();
+  roll(g, p);
+  g.market = false;
+  const k = Object.keys(g.hexes).find(x => g.hexes[x].building && g.hexes[x].building.owner === p.id);
+  const r = TERRAIN_RES[g.hexes[k].terrain];
+  const other = RES.find(x => x !== r);
+  assert.strictEqual(g.bankRate(p, r), 4);
+  g.hexes[k].port = true;
+  assert.strictEqual(g.bankRate(p, r), 2, 'surovina prístavu 2:1');
+  assert.strictEqual(g.bankRate(p, other), g.count(p.id, 'lighthouse') ? 3 : 4, 'ostatné bez zmeny');
+  p.res = { drevo: 0, kamen: 0, ruda: 0, obilie: 0, sol: 0 };
+  p.res[r] = 2;
+  g.act(p.id, { type: 'bankTrade', give: r, get: other });
+  assert.strictEqual(p.res[r], 0);
+  assert.strictEqual(p.res[other], 1);
+  assert.deepStrictEqual(g.view(p.id).bankRates[r], 2);
 });

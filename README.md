@@ -73,7 +73,8 @@ otvoriť `http://<IP-tvojho-počítača>:3000`.
 - **Banditi:** začínajú v horách (na baníckom poli). Keď je súčet oboch kociek 7, hráč na ťahu
   ich môže presunúť na ľubovoľnú odkrytú pevninu alebo nechať na mieste. Pole s banditmi nič neprodukuje.
 - **Stavby** (jedna na políčko): Tábor 1 b., Mesto 2 b., Maják 1 b. (na pobreží, výmena 3:1, ochrana pred pirátmi).
-- **Prístav** (2 drevo, ruda, obilie): na pobrežnej stavbe, 1 b., max. 2. Hráči s prístavom si
+- **Prístav** (2 drevo, ruda, obilie): na pobrežnej stavbe, 1 b., max. 2. S bankou meníš
+  **2:1 surovinu poľa, na ktorom prístav stojí** (napr. prístav na lese = drevo 2:1). Hráči s prístavom si
   môžu posielať **námorné ponuky kedykoľvek, aj mimo svojho ťahu**. Ponuka platí jedno celé kolo,
   každý hráč môže mať naraz jednu a prijať ju môže len hráč s prístavom.
 - **Vojaci a Najväčšie vojsko** (vojak = ruda + obilie, max. 10): kto má najviac vojakov (aspoň 3),
@@ -92,7 +93,8 @@ otvoriť `http://<IP-tvojho-počítača>:3000`.
   - 🧭 **Lodný kompas** (2×) – +1 objav a 1 náhodná surovina.
 - **Výprava:** odkryje zahalené políčko vedľa tvojej stavby. Najviac objavov (aspoň 3) = Veľký objaviteľ (+2 b.).
 - **Zákazky:** odovzdaj suroviny za 1–2 body.
-- **Obchod:** s bankou alebo ponukou ostatným hráčom.
+- **Obchod:** s bankou (4:1, s majákom 3:1, s prístavom 2:1 na jeho surovinu, v Trhový deň 2:1 na všetko)
+  alebo ponukou ostatným hráčom.
 - **Výhra:** prvý, kto počas svojho ťahu dosiahne cieľový počet bodov (štandardne 12).
 
 ## Štruktúra
