@@ -20,6 +20,12 @@ AI hráči stavajú, objavujú, plnia zákazky, obchodujú s bankou a občas pon
 výmenu aj tebe. Tvoje ponuky prijmú, ak im pomôžu. Keď nie je pripojený nikto
 zo živých hráčov, boti čakajú.
 
+Každý bot má vlastnú obtiažnosť (vyberá sa pri pridaní, dá sa zmeniť v lobby):
+- 😊 **Ľahká** – stavia náhodne, s bankou mení až pri plnej ruke, prijme aj neutrálnu výmenu.
+- 🙂 **Stredná** – rozumne plánuje, chráni sa pred búrkou, nepomáha lídrovi tesne pred výhrou.
+- 😈 **Ťažká** – lepšie vyberá políčka a ciele, uprednostňuje mestá a hodnotné zákazky,
+  nevynechá víťazný ťah a je opatrnejší pri obchodoch.
+
 Pri obnovení stránky alebo výpadku spojenia sa hráč automaticky vráti do svojej hry.
 Ak je hráč na ťahu odpojený, ostatní môžu jeho ťah preskočiť.
 

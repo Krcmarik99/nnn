@@ -171,8 +171,16 @@ function handle(ws, msg) {
       return broadcast(room);
     case 'addBot':
       if (ws.pid !== room.host) throw new GameError('AI hráčov môže pridať len zakladateľ párty.');
-      g.addPlayer(bot.botName(g), { bot: true });
+      g.addPlayer(bot.botName(g), { bot: true, level: bot.LEVELS[msg.level] ? msg.level : 'normal' });
       return broadcast(room);
+    case 'botLevel': {
+      if (ws.pid !== room.host) throw new GameError('Obtiažnosť môže meniť len zakladateľ párty.');
+      if (g.phase !== 'lobby') throw new GameError('Obtiažnosť sa dá meniť len pred začiatkom hry.');
+      const p = g.player(msg.pid);
+      if (!p || !p.bot || !bot.LEVELS[msg.level]) throw new GameError('Neplatná obtiažnosť.');
+      p.level = msg.level;
+      return broadcast(room);
+    }
     case 'removeBot': {
       if (ws.pid !== room.host) throw new GameError('AI hráčov môže odobrať len zakladateľ párty.');
       const p = g.player(msg.pid);

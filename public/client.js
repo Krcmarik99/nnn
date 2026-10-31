@@ -18,6 +18,7 @@ const COSTS = {
   explore: { drevo: 1, obilie: 1 },
 };
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+const LEVEL_NAMES = { easy: '😊 Ľahká', normal: '🙂 Stredná', hard: '😈 Ťažká' };
 const DIE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
 const RULES = `
@@ -178,7 +179,11 @@ $('btnJoin').onclick = () => {
   if (!c) return toast('Zadaj kód párty.');
   if (n) send({ t: 'join', code: c, name: n });
 };
-$('btnAddBot').onclick = () => send({ t: 'addBot' });
+$('btnAddBot').onclick = () => {
+  try { localStorage.setItem('suostrovie-botlevel', $('botLevel').value); } catch {}
+  send({ t: 'addBot', level: $('botLevel').value });
+};
+try { const l = localStorage.getItem('suostrovie-botlevel'); if (l) $('botLevel').value = l; } catch {}
 $('btnStart').onclick = () => send({ t: 'start', target: $('target').value });
 $('btnLeave').onclick = () => send({ t: 'leave' });
 $('btnCopy').onclick = () => {
@@ -214,7 +219,11 @@ function renderLobby() {
   $('lobbyPlayers').innerHTML = S.players.map(p =>
     `<li class="${p.online ? '' : 'off'}"><span class="dot" style="background:${p.color}"></span>${esc(p.name)}
      ${p.id === S.host ? '<small class="muted">(zakladateľ)</small>' : ''}${p.id === S.me ? ' <small class="muted">(ty)</small>' : ''}
-     ${p.bot && S.host === S.me ? `<button class="ghost small" data-rmbot="${p.id}" title="Odobrať">✕</button>` : ''}</li>`).join('');
+     ${p.bot ? (S.host === S.me
+        ? `<select class="lvl" data-lvl="${p.id}">${Object.entries(LEVEL_NAMES).map(([k, v]) => `<option value="${k}" ${p.level === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+           <button class="ghost small" data-rmbot="${p.id}" title="Odobrať">✕</button>`
+        : `<small class="muted lvlTag">${LEVEL_NAMES[p.level] || ''}</small>`) : ''}</li>`).join('');
+  $('lobbyPlayers').querySelectorAll('[data-lvl]').forEach(sel => { sel.onchange = () => send({ t: 'botLevel', pid: sel.dataset.lvl, level: sel.value }); });
   $('lobbyPlayers').querySelectorAll('[data-rmbot]').forEach(b => { b.onclick = () => send({ t: 'removeBot', pid: b.dataset.rmbot }); });
   const host = S.host === S.me;
   $('btnAddBot').disabled = S.players.length >= 5;
@@ -486,7 +495,7 @@ function renderPlayers() {
   $('playersPanel').innerHTML = `<h3>Hráči · cieľ ${S.target} b.</h3>` + S.players.map(p => `
     <div class="prow ${p.id === S.current ? 'cur' : ''} ${p.online ? '' : 'off'}">
       <span class="dot" style="background:${p.color}"></span>
-      <span class="nm">${esc(p.name)}${p.id === S.me ? ' (ty)' : ''}${p.online ? '' : ' 📴'}<br>
+      <span class="nm">${esc(p.name)}${p.bot ? ` <small>${(LEVEL_NAMES[p.level] || '').split(' ')[0]}</small>` : ''}${p.id === S.me ? ' (ty)' : ''}${p.online ? '' : ' 📴'}<br>
         <small>🃏 ${p.cards} · ⛺${p.camps} 🏰${p.towns} 🗼${p.lighthouses} · 🧭${p.discoveries}${S.explorer === p.id ? ' 🏅' : ''} · 📜${p.contracts.length}</small></span>
       <span class="vp">${p.vp}</span>
     </div>`).join('')
