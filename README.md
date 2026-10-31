@@ -18,13 +18,23 @@ npm test           # testy herného enginu
 Pri obnovení stránky alebo výpadku spojenia sa hráč automaticky vráti do svojej hry.
 Ak je hráč na ťahu odpojený, ostatní môžu jeho ťah preskočiť.
 
-### Hranie cez internet
+### Nasadenie online (Render.com, zadarmo)
 
-Aby sa kamaráti pripojili odinakiaľ, server musí byť verejne dostupný, napr.:
-- nasadiť ho na hosting s podporou Node.js a WebSocketov (Render, Railway, Fly.io…) – príkaz `npm start`,
-- alebo lokálne spustiť a vystaviť cez tunel (napr. `cloudflared tunnel --url http://localhost:3000`).
+V repozitári je pripravený súbor `render.yaml`.
 
-V rovnakej Wi-Fi stačí otvoriť `http://<IP-tvojho-počítača>:3000`.
+1. Zaregistruj sa na https://render.com (najjednoduchšie cez GitHub účet).
+2. Klikni **New → Blueprint** a vyber repozitár `nnn`. Ak hra ešte nie je v hlavnej vetve,
+   zvoľ vetvu, v ktorej je.
+3. Potvrď **Apply**. Render nainštaluje závislosti a spustí server (trvá to pár minút).
+4. Dostaneš adresu typu `https://suostrovie-xxxx.onrender.com`. Tú pošli kamarátom.
+
+Bezplatný plán uspí server po 15 minútach bez návštev. Prvé otvorenie potom trvá
+asi minútu, a rozohrané hry sa pri uspaní stratia (hry sú len v pamäti servera).
+Každý ďalší push do zvolenej vetvy sa nasadí automaticky.
+
+Iné možnosti: Railway, Fly.io, alebo lokálne spustenie + tunel
+(`cloudflared tunnel --url http://localhost:3000`). V rovnakej Wi-Fi stačí
+otvoriť `http://<IP-tvojho-počítača>:3000`.
 
 ## Pravidlá v skratke
 

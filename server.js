@@ -15,6 +15,10 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 // ---------- statické súbory ----------
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (url.pathname === '/healthz') {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    return res.end('ok');
+  }
   let file = url.pathname === '/' ? '/index.html' : url.pathname;
   const full = path.normalize(path.join(PUBLIC, file));
   if (!full.startsWith(PUBLIC + path.sep)) { res.writeHead(403); return res.end(); }
