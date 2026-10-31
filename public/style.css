@@ -142,3 +142,7 @@ a { color: var(--accent); }
   .rolling .die, .landed .die, .token.pop, .hl { animation: none !important; }
 }
 #board { display: block; }
+#hostControls { display: flex; flex-direction: column; gap: 10px; }
+#hostControls[hidden] { display: none; }
+.small-note { margin: -4px 0 0; font-size: .8rem; }
+button.small { padding: 2px 8px; font-size: .8rem; margin-left: auto; }

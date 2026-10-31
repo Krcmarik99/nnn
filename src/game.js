@@ -124,7 +124,7 @@ class Game {
   }
 
   // ---------- lobby ----------
-  addPlayer(name) {
+  addPlayer(name, opts = {}) {
     if (this.phase !== 'lobby') throw new GameError('Hra už začala.');
     if (this.players.length >= MAX_PLAYERS) throw new GameError('Párty je plná (max. 5 hráčov).');
     name = String(name || '').trim().slice(0, 20) || 'Hráč';
@@ -137,6 +137,7 @@ class Game {
       discoveries: 0,
       contractVP: 0,
       contracts: [],
+      bot: !!opts.bot,
     };
     this.players.push(p);
     return p.id;
@@ -550,6 +551,7 @@ class Game {
       players: this.players.map(p => ({
         id: p.id,
         name: p.name,
+        bot: p.bot,
         color: p.color,
         cards: this.cards(p),
         res: p.id === pid ? { ...p.res } : null,
@@ -592,4 +594,4 @@ class Game {
   }
 }
 
-module.exports = { Game, GameError, RES, COSTS, LIMITS, CONTRACTS, EVENTS, TERRAIN_RES, generateMap, key };
+module.exports = { Game, GameError, RES, COSTS, LIMITS, CONTRACTS, EVENTS, TERRAIN_RES, MAX_PLAYERS, STORM_LIMIT, generateMap, key };
