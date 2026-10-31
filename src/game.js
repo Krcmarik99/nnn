@@ -138,6 +138,7 @@ class Game {
       contractVP: 0,
       contracts: [],
       bot: !!opts.bot,
+      level: opts.bot ? (opts.level || 'normal') : null,
     };
     this.players.push(p);
     return p.id;
@@ -552,6 +553,7 @@ class Game {
         id: p.id,
         name: p.name,
         bot: p.bot,
+        level: p.level,
         color: p.color,
         cards: this.cards(p),
         res: p.id === pid ? { ...p.res } : null,

@@ -9,6 +9,32 @@ const BOT_NAMES = ['Anka', 'Boris', 'Cyril', 'Dana', 'Emil', 'Fero', 'Gabika', '
 const OFFER_WAIT_MS = 6000;
 const MAX_ACTIONS_PER_TURN = 30;
 
+// Úrovne obtiažnosti
+const LEVELS = {
+  easy: {
+    label: 'ľahká',
+    noise: 3,            // takmer náhodný výber políčok
+    randomBuild: true,   // stavia čokoľvek, nie najlepšiu vec
+    tradeMinCards: 7,    // s bankou mení až pri plnej ruke
+    offerChance: 0.25,
+    stormGuard: false,
+    acceptLoose: true,   // prijme aj neutrálnu výmenu
+    leaderGuard: -1,     // nestráži lídra
+    valueAware: false,
+  },
+  normal: {
+    label: 'stredná',
+    noise: 0.3, randomBuild: false, tradeMinCards: 0, offerChance: 0.5,
+    stormGuard: true, acceptLoose: false, leaderGuard: 2, valueAware: false,
+  },
+  hard: {
+    label: 'ťažká',
+    noise: 0.05, randomBuild: false, tradeMinCards: 0, offerChance: 0.9,
+    stormGuard: true, acceptLoose: false, leaderGuard: 3, valueAware: true,
+  },
+};
+const lv = p => LEVELS[p.level] || LEVELS.normal;
+
 function missing(res, cost) {
   let m = 0;
   for (const r of RES) m += Math.max(0, (cost[r] || 0) - res[r]);
@@ -40,7 +66,11 @@ function spotScore(g, p, h) {
   s += ns.filter(n => n.revealed && g.isLand(n) && !n.building).length * 0.35;
   s += ns.filter(n => !n.revealed).length * 0.25;
   if (g.isCoastal(h)) s += 0.2;
-  return s + Math.random() * 0.3;
+  if (lv(p).valueAware) {
+    // ťažký bot počíta aj s tým, koľko jeho stavieb už má rovnaké číslo/surovinu
+    s += mine.filter(x => x.num === h.num).length * -0.6;
+  }
+  return s + Math.random() * lv(p).noise;
 }
 
 // Všetko, o čo sa bot môže snažiť; nižšie "pri" = dôležitejšie
@@ -59,15 +89,19 @@ function options(g, p) {
   }
   if (towns < LIMITS.town) {
     const mine = entries(g).filter(([, h]) => own(h, p) && h.building.type === 'camp');
-    if (mine.length) opts.push({ action: { type: 'build', kind: 'town', hex: mine[0][0] }, cost: COSTS.town, pri: 0 });
+    if (mine.length) {
+      // mesto tam, kde produkuje surovinu, ktorej má najmenej
+      const [k] = lv(p).valueAware ? best(mine, ([, h]) => -p.res[TERRAIN_RES[h.terrain]]) : mine[0];
+      opts.push({ action: { type: 'build', kind: 'town', hex: k }, cost: COSTS.town, pri: lv(p).valueAware ? -0.4 : 0 });
+    }
   }
   for (const id of g.openContracts) {
     const c = CONTRACTS.find(x => x.id === id);
-    opts.push({ action: { type: 'fulfill', id }, cost: c.cost, pri: c.vp >= 2 ? 0.2 : 0.7 });
+    opts.push({ action: { type: 'fulfill', id }, cost: c.cost, pri: c.vp >= 2 ? (lv(p).valueAware ? 0 : 0.2) : 0.7, vp: c.vp });
   }
   if (lights < LIMITS.lighthouse) {
     const coast = entries(g).filter(([, h]) => own(h, p) && !h.lighthouse && g.isCoastal(h));
-    if (coast.length) opts.push({ action: { type: 'build', kind: 'lighthouse', hex: coast[0][0] }, cost: COSTS.lighthouse, pri: lights ? 1.5 : 0.8 });
+    if (coast.length) opts.push({ action: { type: 'build', kind: 'lighthouse', hex: coast[0][0] }, cost: COSTS.lighthouse, pri: lights ? 1.5 : lv(p).valueAware ? 0.5 : 0.8 });
   }
   const hidden = entries(g).filter(([, h]) => !h.revealed && g.adjacentToOwn(h, p.id));
   if (hidden.length) {
@@ -91,7 +125,8 @@ function decide(g, p, mem) {
   }
 
   const turnKey = g.round + ':' + g.turn;
-  if (mem.turnKey !== turnKey) Object.assign(mem, { turnKey, actions: 0, offered: Math.random() < 0.5 }); // ponuku skúša len v polovici ťahov
+  const L = lv(p);
+  if (mem.turnKey !== turnKey) Object.assign(mem, { turnKey, actions: 0, offered: Math.random() >= L.offerChance });
   if (!g.rolled) return { type: 'roll' };
   if (++mem.actions > MAX_ACTIONS_PER_TURN) return { type: 'endTurn' };
 
@@ -105,7 +140,16 @@ function decide(g, p, mem) {
   const ready = options(g, p)
     .filter(o => missing(p.res, o.cost) === 0 && (o.pri < 2 || g.cards(p) > 6))
     .sort((a, b) => a.pri - b.pri);
-  if (ready.length) return ready[0].action;
+  if (ready.length) {
+    if (L.randomBuild) return ready[Math.floor(Math.random() * ready.length)].action;
+    if (L.valueAware) {
+      // ak niektorá akcia prinesie výhru, urob ju hneď
+      const gainVp = o => o.vp || (o.action.kind === 'town' ? 1 : o.action.type === 'build' ? 1 : 0);
+      const win = ready.find(o => g.vp(p) + gainVp(o) >= g.target);
+      if (win) return win.action;
+    }
+    return ready[0].action;
+  }
 
   // 2) Obchoduj smerom k cieľu
   const gl = goal(g, p);
@@ -115,7 +159,7 @@ function decide(g, p, mem) {
     const lacking = RES.filter(r => p.res[r] < (need[r] || 0));
     const rate = g.bankRate(p);
     const surplus = RES.filter(r => spare(r) >= rate).sort((a, b) => spare(b) - spare(a));
-    if (lacking.length && surplus.length) return { type: 'bankTrade', give: surplus[0], get: lacking[0] };
+    if (lacking.length && surplus.length && g.cards(p) >= L.tradeMinCards) return { type: 'bankTrade', give: surplus[0], get: lacking[0] };
 
     if (lacking.length && !mem.offered) {
       mem.offered = true;
@@ -130,7 +174,7 @@ function decide(g, p, mem) {
   }
 
   // 3) Ochrana pred búrkou – zníž počet kariet
-  if (g.cards(p) > STORM_LIMIT) {
+  if (L.stormGuard && g.cards(p) > STORM_LIMIT) {
     const rate = g.bankRate(p);
     const most = best(RES, r => p.res[r]);
     const least = best(RES, r => -p.res[r]);
@@ -144,13 +188,23 @@ function wantsOffer(g, p) {
   const o = g.offer;
   if (!o || o.from === p.id || g.phase !== 'play') return false;
   if (!g.canPay(p, o.want)) return false;
+  const L = lv(p);
   const from = g.player(o.from);
-  if (g.vp(from) >= g.target - 2) return false; // nepomáhaj lídrovi tesne pred výhrou
+  if (L.leaderGuard >= 0 && g.vp(from) >= g.target - L.leaderGuard) return false; // nepomáhaj lídrovi tesne pred výhrou
   const gl = goal(g, p);
   if (!gl) return false;
   const after = { ...p.res };
   for (const r of RES) after[r] += o.give[r] - o.want[r];
-  return missing(after, gl.cost) < missing(p.res, gl.cost);
+  const before = missing(p.res, gl.cost);
+  const now = missing(after, gl.cost);
+  if (L.acceptLoose) return now <= before;
+  if (L.valueAware) {
+    // ťažký bot nedá viac kariet, než dostane, ak to nie je nutné
+    const giveN = RES.reduce((a, r) => a + o.want[r], 0);
+    const getN = RES.reduce((a, r) => a + o.give[r], 0);
+    return now < before && (getN >= giveN || now === 0);
+  }
+  return now < before;
 }
 
 function botName(g) {
@@ -159,4 +213,4 @@ function botName(g) {
   return '🤖 ' + (free[Math.floor(Math.random() * free.length)] || 'Bot');
 }
 
-module.exports = { decide, wantsOffer, botName, missing };
+module.exports = { decide, wantsOffer, botName, missing, LEVELS };

@@ -35,8 +35,15 @@
     <h3>Hráči</h3>
     <ul id="lobbyPlayers" class="plist"></ul>
     <div id="hostControls">
-      <button id="btnAddBot">🤖 Pridať AI hráča</button>
-      <p class="muted small-note">Hráš sám? Pridaj 1–4 AI hráčov a spusti hru.</p>
+      <div class="row">
+        <select id="botLevel" title="Obtiažnosť nového AI hráča">
+          <option value="easy">😊 Ľahká</option>
+          <option value="normal" selected>🙂 Stredná</option>
+          <option value="hard">😈 Ťažká</option>
+        </select>
+        <button id="btnAddBot" style="flex:1">🤖 Pridať AI hráča</button>
+      </div>
+      <p class="muted small-note">Hráš sám? Pridaj 1–4 AI hráčov a spusti hru. Obtiažnosť každého bota sa dá zmeniť v zozname.</p>
       <label>Body na výhru
         <select id="target"><option>10</option><option selected>12</option><option>14</option><option>16</option></select>
       </label>
