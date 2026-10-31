@@ -76,6 +76,15 @@ otvoriť `http://<IP-tvojho-počítača>:3000`.
 - **Prístav** (2 drevo, ruda, obilie): na pobrežnej stavbe, 1 b., max. 2. Hráči s prístavom si
   môžu posielať **námorné ponuky kedykoľvek, aj mimo svojho ťahu**. Ponuka platí jedno celé kolo,
   každý hráč môže mať naraz jednu a prijať ju môže len hráč s prístavom.
+- **Rozvojové karty** (obilie, ruda, soľ): náhodná karta z balíčka (18 kariet). Hrá sa po hode,
+  najskôr v ďalšom ťahu po kúpe, max. jedna za ťah. Ostatní vidia len počet tvojich kariet.
+  - 🗺️ **Mapa pokladu** (3×) – odkry ľubovoľné zahalené pole, z pevniny získaš 2 suroviny.
+  - 🛒 **Kupec** (3×) – do konca ťahu meníš s bankou 2:1.
+  - 🌾 **Bohatá úroda** (3×) – tvoje stavby ihneď vyprodukujú (okrem poľa s banditmi).
+  - 🔨 **Stavitelia** (3×) – tábor zadarmo.
+  - 🏴‍☠️ **Pašeráci** (2×) – od každého súpera s aspoň 5 surovinami získaš 1 náhodnú.
+  - 📜 **Kráľovská listina** (2×) – +1 bod natrvalo.
+  - 🧭 **Lodný kompas** (2×) – +1 objav a 1 náhodná surovina.
 - **Výprava:** odkryje zahalené políčko vedľa tvojej stavby. Najviac objavov (aspoň 3) = Veľký objaviteľ (+2 b.).
 - **Zákazky:** odovzdaj suroviny za 1–2 body.
 - **Obchod:** s bankou alebo ponukou ostatným hráčom.

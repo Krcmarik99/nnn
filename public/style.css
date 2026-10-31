@@ -156,3 +156,11 @@ select.lvl + button.small { margin-left: 0; }
 @media (prefers-reduced-motion: reduce) { .bandit.drop { animation: none; } }
 
 .offer.port { border-left: 3px solid #4f9bd9; }
+
+/* rozvojové karty */
+.devcard { background: var(--bg); border-radius: 8px; padding: 8px; display: flex; gap: 10px; align-items: center; margin-bottom: 6px; border: 1px solid transparent; }
+.devcard.active { border-color: var(--accent); }
+.devcard .dicon { font-size: 1.6rem; width: 36px; text-align: center; }
+.devcard .info { flex: 1; font-size: .85rem; }
+.devcard .cost { color: var(--muted); font-size: .75rem; }
+#cardsPanel[hidden] { display: none; }

@@ -262,3 +262,49 @@ test('prístavy: stavba na pobreží, obchod mimo ťahu, platnosť jedno kolo', 
   }
   assert.strictEqual(g.portOffers.length, 0);
 });
+
+test('rozvojové karty: kúpa, zákaz hrania v ťahu kúpy, max. 1 za ťah, efekty', () => {
+  const { g } = setupGame(2);
+  const p = g.current();
+  const other = g.players.find(x => x !== p);
+  roll(g, p);
+  p.res = { drevo: 0, kamen: 0, ruda: 5, obilie: 5, sol: 5 };
+  const left = g.cardDeck.length;
+  g.act(p.id, { type: 'buyCard' });
+  assert.strictEqual(g.cardDeck.length, left - 1);
+  assert.deepStrictEqual([p.res.ruda, p.res.obilie, p.res.sol], [4, 4, 4]);
+  const c = p.devCards[0];
+  assert.throws(() => g.act(p.id, { type: 'playCard', id: c.id }), /kúpil/);
+  // ostatní nevidia, aké karty mám
+  assert.strictEqual(g.view(other.id).players.find(x => x.id === p.id).devCards, null);
+  assert.strictEqual(g.view(other.id).players.find(x => x.id === p.id).devCount, 1);
+
+  // nasledujúci ťah: listina +1 bod, druhá karta v tom istom ťahu už nejde
+  g.act(p.id, { type: 'endTurn' });
+  roll(g, g.current()); g.act(g.current().id, { type: 'endTurn' });
+  roll(g, p);
+  p.devCards = [{ id: 'x1', type: 'listina', turnNo: -1 }, { id: 'x2', type: 'kupec', turnNo: -1 }];
+  const vp = g.vp(p);
+  g.act(p.id, { type: 'playCard', id: 'x1' });
+  assert.strictEqual(g.vp(p), vp + 1);
+  assert.throws(() => g.act(p.id, { type: 'playCard', id: 'x2' }), /len jednu/);
+  g.act(p.id, { type: 'endTurn' });
+
+  // kupec → 2:1, mapa pokladu → odkryje vzdialené pole
+  roll(g, g.current()); g.act(g.current().id, { type: 'endTurn' });
+  roll(g, p);
+  g.market = false;
+  g.act(p.id, { type: 'playCard', id: 'x2' });
+  assert.strictEqual(g.bankRate(p), 2);
+  g.act(p.id, { type: 'endTurn' });
+  roll(g, g.current()); g.act(g.current().id, { type: 'endTurn' });
+  roll(g, p);
+  p.devCards = [{ id: 'x3', type: 'mapa', turnNo: -1 }];
+  const hidden = Object.keys(g.hexes).find(k => !g.hexes[k].revealed);
+  const disc = p.discoveries;
+  assert.throws(() => g.act(p.id, { type: 'playCard', id: 'x3', hex: Object.keys(g.hexes).find(k => g.hexes[k].revealed) }), /zahalené/);
+  g.act(p.id, { type: 'playCard', id: 'x3', hex: hidden });
+  assert.ok(g.hexes[hidden].revealed);
+  assert.strictEqual(p.discoveries, disc + 1);
+  assert.strictEqual(p.devCards.length, 0);
+});

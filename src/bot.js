@@ -3,7 +3,7 @@
 // Jednoduchá AI pre Súostrovie. Každé volanie decide() vráti jednu akciu,
 // aby server mohol ťahy botov prehrávať postupne a s prestávkami.
 
-const { RES, COSTS, LIMITS, CONTRACTS, TERRAIN_RES, STORM_LIMIT } = require('./game');
+const { RES, COSTS, LIMITS, CONTRACTS, TERRAIN_RES, STORM_LIMIT, CARD_COST } = require('./game');
 
 const BOT_NAMES = ['Anka', 'Boris', 'Cyril', 'Dana', 'Emil', 'Fero', 'Gabika', 'Hugo'];
 const OFFER_WAIT_MS = 6000;
@@ -109,6 +109,9 @@ function options(g, p) {
     const ports = g.count(p.id, 'port');
     if (coast.length) opts.push({ action: { type: 'build', kind: 'port', hex: coast[0][0] }, cost: COSTS.port, pri: ports ? 1.8 : lv(p).valueAware ? 0.6 : 0.9 });
   }
+  if (g.cardDeck && g.cardDeck.length) {
+    opts.push({ action: { type: 'buyCard' }, cost: CARD_COST, pri: lv(p).valueAware ? 0.6 : 1.2 });
+  }
   const hidden = entries(g).filter(([, h]) => !h.revealed && g.adjacentToOwn(h, p.id));
   if (hidden.length) {
     const maxOther = Math.max(0, ...g.players.filter(o => o.id !== p.id).map(o => o.discoveries));
@@ -144,6 +147,52 @@ function banditTarget(g, p) {
   return bk;
 }
 
+// Ktorú rozvojovú kartu zahrať (alebo null)
+function cardPlay(g, p) {
+  if (g.cardPlayed) return null;
+  const hand = (p.devCards || []).filter(c => c.turnNo !== (g.turnNo || 0));
+  if (!hand.length) return null;
+  const L = lv(p);
+  const play = (c, hex) => ({ type: 'playCard', id: c.id, ...(hex ? { hex } : {}) });
+  const order = ['listina', 'stavitelia', 'uroda', 'mapa', 'kompas', 'pasaci', 'kupec'];
+  if (L.randomBuild) order.sort(() => Math.random() - 0.5);
+  for (const type of order) {
+    const c = hand.find(x => x.type === type);
+    if (!c) continue;
+    switch (type) {
+      case 'listina':
+      case 'kompas':
+        return play(c);
+      case 'stavitelia': {
+        if (g.count(p.id, 'camp') >= LIMITS.camp) break;
+        const spots = entries(g).filter(([, h]) => h.revealed && g.isLand(h) && !h.building && g.adjacentToOwn(h, p.id));
+        if (spots.length) return play(c, best(spots, ([, h]) => spotScore(g, p, h))[0]);
+        break;
+      }
+      case 'uroda':
+        if (entries(g).some(([k, h]) => own(h, p) && k !== g.bandits)) return play(c);
+        break;
+      case 'mapa': {
+        const hidden = entries(g).filter(([, h]) => !h.revealed);
+        if (!hidden.length) break;
+        const near = hidden.filter(([, h]) => g.neighbors(h).some(n => own(n, p)));
+        const pick = near.length ? near : hidden;
+        return play(c, pick[Math.floor(Math.random() * pick.length)][0]);
+      }
+      case 'pasaci':
+        if (g.players.some(o => o !== p && g.cards(o) >= 5)) return play(c);
+        break;
+      case 'kupec': {
+        if (g.market) break;
+        const gl = goal(g, p);
+        if (gl && missing(p.res, gl.cost) > 0 && RES.some(r => p.res[r] - (gl.cost[r] || 0) >= 2)) return play(c);
+        break;
+      }
+    }
+  }
+  return null;
+}
+
 function goal(g, p) {
   return best(options(g, p), o => -(missing(p.res, o.cost) + o.pri));
 }
@@ -166,6 +215,10 @@ function decide(g, p, mem) {
     const humanCan = g.players.some(o => !o.bot && g.canPay(o, g.offer.want));
     return !humanCan || Date.now() - mem.offerAt > OFFER_WAIT_MS ? { type: 'cancelOffer' } : 'wait';
   }
+
+  // 0) Rozvojová karta
+  const cp = cardPlay(g, p);
+  if (cp) return cp;
 
   // 1) Postav / splň, čo sa dá
   const ready = options(g, p)

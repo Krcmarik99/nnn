@@ -37,6 +37,7 @@ const RULES = `
   <li>🗼 <b>Maják</b> (2 kameň, drevo, soľ) – na pobrežnej stavbe, 1 bod, výmena s bankou 3:1 a ochrana pred pirátmi. Max. 3.</li>
   </ul></li>
 <li>⚓ <b>Prístav</b> (2 drevo, ruda, obilie) – na pobrežnej stavbe, 1 bod. Max. 2. Hráči s prístavom si môžu posielať <b>námorné ponuky kedykoľvek</b>, aj mimo svojho ťahu. Ponuka platí jedno celé kolo a prijať ju môže len hráč s prístavom.</li>
+<li>🎴 <b>Rozvojové karty</b> (obilie, ruda, soľ): kúpiš náhodnú kartu z balíčka. Zahrať ju môžeš po hode, najskôr v ďalšom ťahu, a len jednu za ťah. Karty: 🗺️ Mapa pokladu, 🛒 Kupec, 🌾 Bohatá úroda, 🔨 Stavitelia, 🏴‍☠️ Pašeráci, 📜 Kráľovská listina, 🧭 Lodný kompas.</li>
 <li>🧭 <b>Výprava</b> (drevo, obilie): odkry zahalené políčko vedľa svojej stavby. Ak je to pevnina, dostaneš 1 jej surovinu. Kto má najviac objavov (aspoň 3), je <b>Veľký objaviteľ</b> (+2 body).</li>
 <li>🦹 <b>Banditi</b> začínajú v horách (na baníckom poli). Keď je súčet oboch kociek <b>7</b>, hráč na ťahu ich môže presunúť na ľubovoľnú odkrytú pevninu (alebo nechať na mieste). Pole s banditmi nič neprodukuje.</li>
 <li>📜 <b>Zákazky:</b> tri sú vždy vyložené. Odovzdaj požadované suroviny a získaj 1–2 body.</li>
@@ -148,6 +149,7 @@ function applyState(next, prev, afterRoll) {
     else if (sum(S, 'discoveries') > sum(prev, 'discoveries')) FX.sound('explore');
     else if (prev.bandits && S.bandits !== prev.bandits) FX.sound('bandits');
     else if (S.log.at(-1) !== prev.log.at(-1) && /prijíma (námorný )?obchod/.test(S.log.at(-1))) FX.sound('trade');
+    if (S.log.at(-1) !== prev.log.at(-1) && / hrá kartu | kupuje rozvojovú kartu/.test(S.log.at(-1))) FX.sound('card');
   }
   const myTurnNow = st => st.current === st.me && (st.phase === 'play' || st.phase === 'setup');
   if (myTurnNow(S) && !myTurnNow(prev)) setTimeout(() => FX.sound('turn'), afterRoll ? 600 : 0);
@@ -211,6 +213,7 @@ function render() {
   renderBoard();
   renderPlayers();
   renderMine();
+  renderCards();
   renderActions();
   renderTrade();
   renderContracts();
@@ -271,6 +274,11 @@ function renderStatus() {
 }
 
 function modeName(m) {
+  if (m && m.startsWith('card:')) {
+    const c = (me().devCards || []).find(x => x.id === m.slice(5));
+    const d = c && cardDef(c.type);
+    return d ? d.name : 'karta';
+  }
   return { place: 'tábor', camp: 'tábor', town: 'mesto', lighthouse: 'maják', port: 'prístav', explore: 'výprava' }[m];
 }
 
@@ -296,6 +304,12 @@ function validHexes() {
     else if (m2 === 'town') ok = own(h) && h.building.type === 'camp';
     else if (m2 === 'lighthouse') ok = own(h) && !h.lighthouse && h.coastal;
     else if (m2 === 'port') ok = own(h) && !h.port && h.coastal;
+    else if (m2 && m2.startsWith('card:')) {
+      const c = (me().devCards || []).find(x => x.id === m2.slice(5));
+      const t = c && cardDef(c.type).target;
+      if (t === 'hidden') ok = !h.revealed;
+      else if (t === 'camp') ok = land(h) && !h.building && adjOwn(h);
+    }
     else if (m2 === 'explore') ok = !h.revealed && adjOwn(h);
     else if (m2 === 'bandits') ok = land(h) && h.k !== S.bandits;
     if (ok) out.add(h.k);
@@ -530,6 +544,7 @@ function renderBoard() {
       const k = g.dataset.k;
       if (S.phase === 'setup') act({ type: 'place', hex: k });
       else if (S.pendingBandits) act({ type: 'moveBandits', hex: k });
+      else if (mode && mode.startsWith('card:')) act({ type: 'playCard', id: mode.slice(5), hex: k });
       else if (mode === 'explore') act({ type: 'explore', hex: k });
       else act({ type: 'build', kind: mode, hex: k });
       mode = null;
@@ -545,13 +560,47 @@ function renderPlayers() {
     <div class="prow ${p.id === S.current ? 'cur' : ''} ${p.online ? '' : 'off'}">
       <span class="dot" style="background:${p.color}"></span>
       <span class="nm">${esc(p.name)}${p.bot ? ` <small>${(LEVEL_NAMES[p.level] || '').split(' ')[0]}</small>` : ''}${p.id === S.me ? ' (ty)' : ''}${p.online ? '' : ' 📴'}<br>
-        <small>🃏 ${p.cards} · ⛺${p.camps} 🏰${p.towns} 🗼${p.lighthouses} ⚓${p.ports || 0} · 🧭${p.discoveries}${S.explorer === p.id ? ' 🏅' : ''} · 📜${p.contracts.length}</small></span>
+        <small>🃏 ${p.cards} · ⛺${p.camps} 🏰${p.towns} 🗼${p.lighthouses} ⚓${p.ports || 0} · 🧭${p.discoveries}${S.explorer === p.id ? ' 🏅' : ''} · 📜${p.contracts.length} · 🎴${p.devCount || 0}</small></span>
       <span class="vp">${p.vp}</span>
     </div>`).join('')
     + (S.phase !== 'ended' && pl(S.current) && !pl(S.current).online && S.current !== S.me
       ? `<button id="btnSkip" style="margin-top:6px;width:100%">Preskočiť ťah odpojeného hráča</button>` : '');
   const b = $('btnSkip');
   if (b) b.onclick = () => send({ t: 'skip' });
+}
+
+const cardDef = type => (S.cardDefs || []).find(d => d.id === type) || { name: type, icon: '🎴', text: '' };
+
+function renderCards() {
+  const panel = $('cardsPanel');
+  const cards = me().devCards || [];
+  if (S.phase !== 'play' && S.phase !== 'ended') { panel.hidden = true; return; }
+  panel.hidden = false;
+  const canNow = myTurn() && S.phase === 'play' && S.rolled && !S.pendingBandits && !S.cardPlayed;
+  let html = `<h3>Rozvojové karty <small class="muted">(v balíčku ${S.cardsLeft ?? 0})</small></h3>`;
+  if (!cards.length) {
+    html += '<p class="muted">Nemáš žiadne karty. Kúpiš ich v Akciách za obilie, rudu a soľ.</p>';
+  }
+  for (const c of cards) {
+    const d = cardDef(c.type);
+    const why = c.fresh ? 'kúpená v tomto ťahu' : S.cardPlayed && myTurn() ? 'už si hral(a) kartu' : '';
+    html += `<div class="devcard${mode === 'card:' + c.id ? ' active' : ''}">
+      <div class="dicon">${d.icon}</div>
+      <div class="info"><b>${esc(d.name)}</b><div class="cost">${esc(d.text)}</div>${why ? `<small class="muted">${why}</small>` : ''}</div>
+      ${S.phase === 'play' ? `<button data-card="${c.id}" ${canNow && !c.fresh ? '' : 'disabled'}>${mode === 'card:' + c.id ? 'Zrušiť' : 'Zahrať'}</button>` : ''}
+    </div>`;
+  }
+  panel.innerHTML = html;
+  panel.querySelectorAll('[data-card]').forEach(b => {
+    b.onclick = () => {
+      const c = cards.find(x => x.id === b.dataset.card);
+      const d = cardDef(c.type);
+      if (!d.target) { mode = null; return act({ type: 'playCard', id: c.id }); }
+      mode = mode === 'card:' + c.id ? null : 'card:' + c.id;
+      if (mode && !validHexes().size) { toast('Kartu teraz nie je kam zahrať.'); mode = null; }
+      render();
+    };
+  });
 }
 
 function renderMine() {
@@ -587,9 +636,11 @@ function renderActions() {
     <button data-mode="lighthouse" ${dis(COSTS.lighthouse, m.lighthouses >= 3)} class="${mode === 'lighthouse' ? 'active' : ''}">🗼 Maják<small>${costStr(COSTS.lighthouse)}</small></button>
     <button data-mode="port" ${dis(COSTS.port, (m.ports || 0) >= 2)} class="${mode === 'port' ? 'active' : ''}">⚓ Prístav<small>${costStr(COSTS.port)}</small></button>
     <button data-mode="explore" ${dis(COSTS.explore)} class="${mode === 'explore' ? 'active' : ''}">🧭 Výprava<small>${costStr(COSTS.explore)}</small></button>
+    <button id="btnBuyCard" ${dis(S.cardCost || {}, !S.cardsLeft)} title="Zostáva ${S.cardsLeft || 0} kariet">🎴 Rozvojová karta<small>${costStr(S.cardCost || {})}</small></button>
     ${S.rolled ? '<button id="btnEnd" class="primary wide">Ukončiť ťah ➜</button>' : ''}
   </div>`;
   if ($('btnRoll')) $('btnRoll').onclick = () => act({ type: 'roll' });
+  if ($('btnBuyCard')) $('btnBuyCard').onclick = () => act({ type: 'buyCard' });
   if ($('btnEnd')) $('btnEnd').onclick = () => { mode = null; act({ type: 'endTurn' }); };
   p.querySelectorAll('[data-mode]').forEach(b => {
     b.onclick = () => {

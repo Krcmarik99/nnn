@@ -93,6 +93,10 @@ const FX = (() => {
       noise(t, 0.5, { vol: 0.25, freq: 900, q: 0.8 });
       tone(520, t + 0.15, 0.3, { vol: 0.08, to: 780 });
     },
+    card(t) {
+      noise(t, 0.12, { vol: 0.25, freq: 3000, q: 0.7 });
+      tone(700, t + 0.08, 0.12, { type: 'triangle', vol: 0.1, to: 1100 });
+    },
     trade(t) { tone(1200, t, 0.06, { vol: 0.1 }); tone(1600, t + 0.07, 0.1, { vol: 0.1 }); },
     chat(t) { tone(1050, t, 0.07, { vol: 0.06 }); },
     win(t) {
