@@ -149,3 +149,8 @@ button.small { padding: 2px 8px; font-size: .8rem; margin-left: auto; }
 select.lvl { margin-left: auto; padding: 3px 6px; font-size: .8rem; }
 select.lvl + button.small { margin-left: 0; }
 .lvlTag { margin-left: auto; }
+
+/* banditi */
+.bandit.drop { animation: banditDrop .6s cubic-bezier(.3,1.5,.5,1); transform-box: fill-box; }
+@keyframes banditDrop { 0% { opacity: 0; translate: 0 -30px; } 100% { opacity: 1; translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .bandit.drop { animation: none; } }

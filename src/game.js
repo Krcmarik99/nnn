@@ -20,6 +20,8 @@ const MAP_RADIUS = 3;
 const STORM_LIMIT = 8;
 const EXPLORER_MIN = 3;
 const EXPLORER_VP = 2;
+const BANDIT_SUM = 7;
+const TERRAIN_NAMES = { les: 'Les', lom: 'Lom', bana: 'Baňa', pole: 'Pole', solnisko: 'Soľnisko', more: 'More' };
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 
 const EVENTS = [
@@ -172,6 +174,10 @@ class Game {
     this.eventDeck = [];
     this.contractDeck = shuffle(CONTRACTS.map(c => c.id), this.rng);
     this.openContracts = this.contractDeck.splice(0, 3);
+    // Banditi začínajú v horách – na odkrytom baníckom poli
+    const mines = Object.keys(this.hexes).filter(k => this.hexes[k].revealed && this.hexes[k].terrain === 'bana');
+    this.bandits = mines.length ? mines[Math.floor(this.rng() * mines.length)] : null;
+    this.pendingBandits = false;
     this.addLog(`Hra začala! Cieľ: ${this.target} bodov. Každý hráč postaví 2 tábory.`);
   }
 
@@ -315,6 +321,8 @@ class Game {
     }
     if (a.type === 'roll') return this.roll(p);
     if (!this.rolled) throw new GameError('Najprv hoď kockami.');
+    if (a.type === 'moveBandits') return this.moveBandits(p, a.hex);
+    if (this.pendingBandits) throw new GameError('Najprv presuň banditov (alebo ich nechaj na mieste).');
     switch (a.type) {
       case 'build': return this.build(p, a.kind, a.hex);
       case 'explore': return this.explore(p, a.hex);
@@ -358,6 +366,10 @@ class Game {
     for (const k in this.hexes) {
       const h = this.hexes[k];
       if (!h.building || h.num !== prod) continue;
+      if (k === this.bandits) {
+        this.addLog(`  🦹 Banditi blokujú pole ${TERRAIN_NAMES[h.terrain]} (${h.num}) – ${this.player(h.building.owner).name} nič nedostáva.`);
+        continue;
+      }
       const owner = this.player(h.building.owner);
       const n = h.building.type === 'town' ? 2 : 1;
       const r = TERRAIN_RES[h.terrain];
@@ -373,6 +385,26 @@ class Game {
     } else if (ev === 1) {
       this.drawEvent(p);
     }
+    if (prod + ev === BANDIT_SUM) {
+      this.pendingBandits = true;
+      this.addLog(`🦹 Súčet ${BANDIT_SUM}! ${p.name} môže presunúť banditov.`);
+    }
+  }
+
+  moveBandits(p, k) {
+    if (!this.pendingBandits) throw new GameError('Banditov môžeš presunúť len po hode so súčtom 7.');
+    if (k == null) {
+      this.pendingBandits = false;
+      this.addLog(`🦹 ${p.name} necháva banditov na mieste.`);
+      return;
+    }
+    const h = this.hex(k);
+    if (!h.revealed || !this.isLand(h)) throw new GameError('Banditi môžu ísť len na odkrytú pevninu.');
+    if (k === this.bandits) throw new GameError('Banditi už na tomto poli sú.');
+    this.bandits = k;
+    this.pendingBandits = false;
+    const who = h.building ? ` (${this.player(h.building.owner).name})` : '';
+    this.addLog(`🦹 ${p.name} presúva banditov na pole ${TERRAIN_NAMES[h.terrain]} (${h.num})${who}.`);
   }
 
   drawEvent(p) {
@@ -393,7 +425,7 @@ class Game {
       case 'hojnost':
         for (const k in this.hexes) {
           const h = this.hexes[k];
-          if (!h.building) continue;
+          if (!h.building || k === this.bandits) continue;
           this.gain(this.player(h.building.owner), TERRAIN_RES[h.terrain], h.building.type === 'town' ? 2 : 1);
         }
         break;
@@ -551,6 +583,7 @@ class Game {
     }
     this.addLog(`${p.name} je odpojený(á) – ťah sa preskakuje.`);
     if (!this.rolled) this.roll(p);
+    if (this.pendingBandits) this.moveBandits(p, null);
     if (this.phase === 'play') this.endTurn(p);
   }
 
@@ -590,6 +623,8 @@ class Game {
       explorer: this.explorer,
       lastEvent: this.lastEvent,
       lastRoll: this.lastRoll || null,
+      bandits: this.bandits || null,
+      pendingBandits: !!this.pendingBandits,
       winner: this.winner,
       bankRate: me ? this.bankRate(me) : 4,
       contracts: this.openContracts.map(id => CONTRACTS.find(c => c.id === id)),
@@ -607,4 +642,4 @@ class Game {
   }
 }
 
-module.exports = { Game, GameError, RES, COSTS, LIMITS, CONTRACTS, EVENTS, TERRAIN_RES, MAX_PLAYERS, STORM_LIMIT, generateMap, key };
+module.exports = { Game, GameError, RES, COSTS, LIMITS, CONTRACTS, EVENTS, TERRAIN_RES, MAX_PLAYERS, STORM_LIMIT, BANDIT_SUM, generateMap, key };

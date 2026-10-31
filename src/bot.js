@@ -30,7 +30,7 @@ const LEVELS = {
   hard: {
     label: 'ťažká',
     noise: 0.05, randomBuild: false, tradeMinCards: 0, offerChance: 0.9,
-    stormGuard: true, acceptLoose: false, leaderGuard: 3, valueAware: true,
+    stormGuard: true, acceptLoose: false, leaderGuard: 2, valueAware: true,
   },
 };
 const lv = p => LEVELS[p.level] || LEVELS.normal;
@@ -69,6 +69,7 @@ function spotScore(g, p, h) {
   if (lv(p).valueAware) {
     // ťažký bot počíta aj s tým, koľko jeho stavieb už má rovnaké číslo/surovinu
     s += mine.filter(x => x.num === h.num).length * -0.6;
+    if (g.bandits && g.hexes[g.bandits] === h) s -= 3; // pole s banditmi nič nevyprodukuje
   }
   return s + Math.random() * lv(p).noise;
 }
@@ -91,7 +92,7 @@ function options(g, p) {
     const mine = entries(g).filter(([, h]) => own(h, p) && h.building.type === 'camp');
     if (mine.length) {
       // mesto tam, kde produkuje surovinu, ktorej má najmenej
-      const [k] = lv(p).valueAware ? best(mine, ([, h]) => -p.res[TERRAIN_RES[h.terrain]]) : mine[0];
+      const [k] = lv(p).valueAware ? best(mine, ([key, h]) => -p.res[TERRAIN_RES[h.terrain]] - (key === g.bandits ? 10 : 0)) : mine[0];
       opts.push({ action: { type: 'build', kind: 'town', hex: k }, cost: COSTS.town, pri: lv(p).valueAware ? -0.4 : 0 });
     }
   }
@@ -114,6 +115,30 @@ function options(g, p) {
   return opts;
 }
 
+// Kam presunúť banditov: na pole súpera (najmä lídra), nikdy nie na svoje
+function banditTarget(g, p) {
+  const L = lv(p);
+  const land = entries(g).filter(([k, h]) => h.revealed && g.isLand(h) && k !== g.bandits);
+  if (!land.length) return null;
+  if (L.randomBuild) {
+    const safe = land.filter(([, h]) => !own(h, p));
+    const pick = safe.length ? safe : land;
+    return pick[Math.floor(Math.random() * pick.length)][0];
+  }
+  const harm = (k, h) => {
+    if (!h.building) return 0;
+    if (own(h, p)) return -10;
+    const owner = g.player(h.building.owner);
+    const lead = g.vp(owner) / g.target;
+    return (h.building.type === 'town' ? 2 : 1) * (1 + lead * (L.valueAware ? 3 : 1));
+  };
+  const [bk, bh] = best(land, ([k, h]) => harm(k, h) + Math.random() * 0.1);
+  const cur = g.bandits && g.hexes[g.bandits];
+  // ak banditi už stoja na dobrom mieste, nechaj ich tam
+  if (cur && harm(g.bandits, cur) >= harm(bk, bh)) return null;
+  return bk;
+}
+
 function goal(g, p) {
   return best(options(g, p), o => -(missing(p.res, o.cost) + o.pri));
 }
@@ -128,6 +153,7 @@ function decide(g, p, mem) {
   const L = lv(p);
   if (mem.turnKey !== turnKey) Object.assign(mem, { turnKey, actions: 0, offered: Math.random() >= L.offerChance });
   if (!g.rolled) return { type: 'roll' };
+  if (g.pendingBandits) return { type: 'moveBandits', hex: banditTarget(g, p) };
   if (++mem.actions > MAX_ACTIONS_PER_TURN) return { type: 'endTurn' };
 
   if (g.offer && g.offer.from === p.id) {
@@ -213,4 +239,4 @@ function botName(g) {
   return '🤖 ' + (free[Math.floor(Math.random() * free.length)] || 'Bot');
 }
 
-module.exports = { decide, wantsOffer, botName, missing, LEVELS };
+module.exports = { decide, wantsOffer, botName, missing, LEVELS, banditTarget };

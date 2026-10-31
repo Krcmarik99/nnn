@@ -7,6 +7,12 @@ function seeded(seed = 42) {
   return () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
 }
 
+// hod kockami; ak padne súčet 7, banditi zostanú na mieste
+function roll(g, p) {
+  g.act(p.id, { type: 'roll' });
+  if (g.pendingBandits) g.act(p.id, { type: 'moveBandits', hex: null });
+}
+
 function setupGame(n = 3) {
   const g = new Game({ rng: seeded() });
   const ids = Array.from({ length: n }, (_, i) => g.addPlayer('Hráč ' + i));
@@ -48,14 +54,14 @@ test('nedá sa konať mimo ťahu a bez hodu', () => {
   const other = g.players[1];
   assert.throws(() => g.act(other.id, { type: 'roll' }), /Nie si na ťahu/);
   assert.throws(() => g.act(g.current().id, { type: 'endTurn' }), /hoď/);
-  g.act(g.current().id, { type: 'roll' });
+  roll(g, g.current());
   assert.throws(() => g.act(g.current().id, { type: 'roll' }), GameError);
 });
 
 test('stavba tábora vyžaduje suseda a suroviny', () => {
   const { g } = setupGame(2);
   const p = g.current();
-  g.act(p.id, { type: 'roll' });
+  roll(g, p);
   RES.forEach(r => { p.res[r] = 5; });
   const target = Object.keys(g.hexes).find(k => {
     const h = g.hexes[k];
@@ -77,7 +83,7 @@ test('stavba tábora vyžaduje suseda a suroviny', () => {
 test('výprava odkrýva políčko a dáva titul Veľký objaviteľ', () => {
   const { g } = setupGame(2);
   const p = g.current();
-  g.act(p.id, { type: 'roll' });
+  roll(g, p);
   RES.forEach(r => { p.res[r] = 20; });
   // dostaneme sa k okraju: stavaj tábory smerom von, kým sa nedá objavovať
   for (let i = 0; i < 10 && p.discoveries < 3; i++) {
@@ -92,7 +98,7 @@ test('výprava odkrýva políčko a dáva titul Veľký objaviteľ', () => {
 test('obchod medzi hráčmi', () => {
   const { g } = setupGame(2);
   const [a, b] = [g.current(), g.players[1]];
-  g.act(a.id, { type: 'roll' });
+  roll(g, a);
   a.res = { drevo: 2, kamen: 0, ruda: 0, obilie: 0, sol: 0 };
   b.res = { drevo: 0, kamen: 0, ruda: 0, obilie: 0, sol: 1 };
   g.act(a.id, { type: 'offer', give: { drevo: 2 }, want: { sol: 1 } });
@@ -104,7 +110,7 @@ test('obchod medzi hráčmi', () => {
 test('výmena s bankou 4:1 a zákazka', () => {
   const { g } = setupGame(2);
   const p = g.current();
-  g.act(p.id, { type: 'roll' });
+  roll(g, p);
   g.market = false;
   p.res = { drevo: 4, kamen: 0, ruda: 0, obilie: 0, sol: 0 };
   g.act(p.id, { type: 'bankTrade', give: 'drevo', get: 'sol' });
@@ -120,7 +126,7 @@ test('výmena s bankou 4:1 a zákazka', () => {
 test('výhra pri dosiahnutí cieľa', () => {
   const { g } = setupGame(2);
   const p = g.current();
-  g.act(p.id, { type: 'roll' });
+  roll(g, p);
   p.contractVP = 9;
   RES.forEach(r => { p.res[r] = 5; });
   g.act(p.id, { type: 'fulfill', id: g.openContracts[0] });
@@ -137,7 +143,7 @@ test('simulácia celej hry nespadne', () => {
     while (g.phase !== 'ended' && steps++ < 3000) {
       const p = g.current();
       if (g.phase === 'setup') { g.forceSkip(); continue; }
-      g.act(p.id, { type: 'roll' });
+      roll(g, p);
       for (const kind of ['town', 'camp', 'lighthouse']) {
         for (const k of Object.keys(g.hexes)) {
           try { g.act(p.id, { type: 'build', kind, hex: k }); } catch (e) { if (!(e instanceof GameError)) throw e; }
@@ -157,4 +163,49 @@ test('simulácia celej hry nespadne', () => {
     }
     assert.strictEqual(g.phase, 'ended', 'hra so seedom ' + s + ' neskončila');
   }
+});
+
+test('banditi: začínajú v horách, súčet 7 ich dovolí presunúť a blokujú produkciu', () => {
+  const { g } = setupGame(2);
+  assert.strictEqual(g.hexes[g.bandits].terrain, 'bana');
+  const p = g.current();
+  // vynúť hod 3 + 4
+  const seq = [2 / 6 + 0.01, 3 / 6 + 0.01];
+  const orig = g.rng;
+  g.rng = () => (seq.length ? seq.shift() : orig());
+  g.act(p.id, { type: 'roll' });
+  assert.deepStrictEqual(g.dice, [3, 4]);
+  assert.strictEqual(g.pendingBandits, true);
+  assert.throws(() => g.act(p.id, { type: 'endTurn' }), /banditov/);
+  assert.throws(() => g.act(p.id, { type: 'moveBandits', hex: g.bandits }), /už/);
+  // presuň na pole súpera
+  const other = g.players.find(x => x.id !== p.id);
+  const target = Object.keys(g.hexes).find(k => g.hexes[k].building && g.hexes[k].building.owner === other.id);
+  g.act(p.id, { type: 'moveBandits', hex: target });
+  assert.strictEqual(g.bandits, target);
+  g.act(p.id, { type: 'endTurn' });
+  // keď padne číslo poľa s banditmi, majiteľ nič nedostane
+  const num = g.hexes[target].num;
+  const before = g.cards(other);
+  const othersSameNum = Object.keys(g.hexes).filter(k => k !== target && g.hexes[k].building && g.hexes[k].building.owner === other.id && g.hexes[k].num === num);
+  g.rng = (() => { const q = [(num - 1) / 6 + 0.01, 1 / 6 + 0.01]; return () => (q.length ? q.shift() : orig()); })();
+  g.act(g.current().id, { type: 'roll' });
+  const expected = before + othersSameNum.reduce((a, k) => a + (g.hexes[k].building.type === 'town' ? 2 : 1), 0);
+  assert.strictEqual(g.cards(other), expected);
+});
+
+test('banditi sa dajú nechať na mieste a forceSkip ich vyrieši', () => {
+  const { g } = setupGame(2);
+  g.pendingBandits = false;
+  const p = g.current();
+  g.rolled = true;
+  g.pendingBandits = true;
+  const start = g.bandits;
+  g.act(p.id, { type: 'moveBandits', hex: null });
+  assert.strictEqual(g.bandits, start);
+  assert.strictEqual(g.pendingBandits, false);
+  g.pendingBandits = true;
+  g.forceSkip();
+  assert.strictEqual(g.pendingBandits, false);
+  assert.notStrictEqual(g.current().id, p.id);
 });

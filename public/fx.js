@@ -85,6 +85,10 @@ const FX = (() => {
       tone(990, t + 0.14, 0.3, { vol: 0.12 });
     },
     build(t) { knock(t, 130, 0.4); knock(t + 0.13, 120, 0.3); },
+    bandits(t) {
+      [392, 370, 311, 262].forEach((f, i) => tone(f, t + i * 0.13, 0.22, { type: 'triangle', vol: 0.13 }));
+      noise(t + 0.5, 0.35, { vol: 0.2, freq: 600, kind: 'lowpass', q: 0.6 });
+    },
     explore(t) {
       noise(t, 0.5, { vol: 0.25, freq: 900, q: 0.8 });
       tone(520, t + 0.15, 0.3, { vol: 0.08, to: 780 });
@@ -144,7 +148,8 @@ const FX = (() => {
       ov.classList.add('landed');
       if (ev === 1) ov.classList.add('ev1');
       if (ev === 6) ov.classList.add('ev6');
-      cap.textContent = `${caption} · produkcia ${prod}` + (ev === 1 ? ' · ⚡ udalosť!' : ev === 6 ? ' · 🛒 Trhový deň' : '');
+      cap.textContent = `${caption} · produkcia ${prod}` + (ev === 1 ? ' · ⚡ udalosť!' : ev === 6 ? ' · 🛒 Trhový deň' : '')
+        + (prod + ev === 7 ? ' · 🦹 banditi!' : '');
       sound('land');
       onLanded();
       hideTimer = setTimeout(() => {
