@@ -175,6 +175,17 @@ class Game {
     this.addLog(`Hra začala! Cieľ: ${this.target} bodov. Každý hráč postaví 2 tábory.`);
   }
 
+  // ---------- uloženie / obnovenie ----------
+  serialize() {
+    return JSON.parse(JSON.stringify(this)); // rng (funkcia) sa vynechá
+  }
+
+  static restore(data, opts = {}) {
+    const g = new Game(opts);
+    Object.assign(g, data);
+    return g;
+  }
+
   // ---------- helpers ----------
   addLog(msg) {
     this.log.push(msg);

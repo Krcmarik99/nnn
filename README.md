@@ -43,6 +43,23 @@ Bezplatný plán uspí server po 15 minútach bez návštev. Prvé otvorenie pot
 asi minútu, a rozohrané hry sa pri uspaní stratia (hry sú len v pamäti servera).
 Každý ďalší push do zvolenej vetvy sa nasadí automaticky.
 
+### Ukladanie hier
+
+Rozohrané hry sa priebežne ukladajú (každé 2 sekundy a pri vypnutí servera), takže
+prežijú reštart aj nové nasadenie. Hráči sa po reštarte automaticky pripoja späť.
+Neaktívne hry sa mažú po 7 dňoch.
+
+- **Lokálne** sa hry ukladajú do priečinka `data/` (dá sa zmeniť cez `DATA_DIR`).
+- **Na Renderi** sa súbory pri reštarte mažú, preto treba databázu PostgreSQL:
+  1. Založ si zadarmo databázu, napr. na https://neon.tech (New Project), a skopíruj
+     *connection string* (`postgresql://…?sslmode=require`).
+  2. V Renderi otvor službu `suostrovie` → **Environment** → **Add Environment Variable**:
+     `DATABASE_URL` = skopírovaný reťazec → **Save Changes**.
+  3. V logu po nasadení uvidíš `Úložisko: PostgreSQL, obnovených hier: …`.
+
+  Tabuľka `suostrovie_rooms` sa vytvorí automaticky. Ak databáza nie je dostupná,
+  server beží ďalej, len bez ukladania.
+
 Iné možnosti: Railway, Fly.io, alebo lokálne spustenie + tunel
 (`cloudflared tunnel --url http://localhost:3000`). V rovnakej Wi-Fi stačí
 otvoriť `http://<IP-tvojho-počítača>:3000`.
@@ -63,6 +80,7 @@ otvoriť `http://<IP-tvojho-počítača>:3000`.
 
 - `src/game.js` – herný engine (pravidlá, autoritatívne na serveri)
 - `src/bot.js` – AI hráči
+- `src/storage.js` – ukladanie hier (PostgreSQL alebo súbory)
 - `server.js` – HTTP + WebSocket server, správa párty a ťahy AI
 - `public/` – klient (HTML, CSS, JS, mapa v SVG)
 - `test/` – testy enginu
