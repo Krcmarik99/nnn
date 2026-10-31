@@ -3,6 +3,19 @@
 const RES = ['drevo', 'kamen', 'ruda', 'obilie', 'sol'];
 const RES_NAMES = { drevo: 'Drevo', kamen: 'Kameň', ruda: 'Ruda', obilie: 'Obilie', sol: 'Soľ' };
 const RES_ICON = { drevo: '🪵', kamen: '🪨', ruda: '⛏️', obilie: '🌾', sol: '🧂' };
+const wheatGrains = Array.from({ length: 4 }, (_, i) => {
+  const y = 5 + i * 3.4;
+  return `<ellipse cx="9.8" cy="${y}" rx="2" ry="2.9" transform="rotate(-25 9.8 ${y})" fill="#f4d35e" stroke="#a87a16" stroke-width=".6"/>`
+    + `<ellipse cx="14.2" cy="${y}" rx="2" ry="2.9" transform="rotate(25 14.2 ${y})" fill="#e0b13a" stroke="#a87a16" stroke-width=".6"/>`;
+}).join('');
+const RES_SVG = {
+  drevo: '<svg viewBox="0 0 24 24"><rect x="1.5" y="8" width="17" height="9" rx="4.5" fill="#8d5a2b" stroke="#4a2c12" stroke-width=".8"/><path d="M4 10.6h11M4 14.4h10" stroke="#6b4220" stroke-width="1"/><ellipse cx="18.5" cy="12.5" rx="3.8" ry="4.6" fill="#e3b778" stroke="#4a2c12" stroke-width=".8"/><ellipse cx="18.5" cy="12.5" rx="1.9" ry="2.4" fill="none" stroke="#b07a3e" stroke-width=".9"/><path d="M7 8.2l1.6-3.4 1.6 3.4z" fill="#52b788"/></svg>',
+  kamen: '<svg viewBox="0 0 24 24"><path d="M2.5 19l2-8.5 6.5-5.5 7.5 2 4 7.5-2.5 4.5z" fill="#7d8896" stroke="#343a40" stroke-width=".9"/><path d="M4.5 10.5l6.5-5.5 7.5 2-5.5 4.5z" fill="#d6dce3"/><path d="M13 11.5l5.5-4.5 4 7.5-2.5 4.5z" fill="#5c6672"/></svg>',
+  ruda: '<svg viewBox="0 0 24 24"><path d="M1.5 21l4.5-9.5 6-3 7 3 3.5 9.5z" fill="#6b4a32" stroke="#2b1a0e" stroke-width=".9"/><path d="M8.5 15l3.5-8 3.5 8-3.5 4z" fill="#8fe3ff" stroke="#1d6fa5" stroke-width=".9"/><path d="M12 7l3.5 8-3.5 4z" fill="#3fa9de"/><path d="M16.5 17l2-4 2 4-2 2z" fill="#8fe3ff" stroke="#1d6fa5" stroke-width=".7"/></svg>',
+  obilie: `<svg viewBox="0 0 24 24"><path d="M12 23V7" stroke="#9a6b1f" stroke-width="1.6" stroke-linecap="round"/><path d="M12 18l-4 -3M12 20l4 -3" stroke="#9a6b1f" stroke-width="1.2" stroke-linecap="round"/>${wheatGrains}<ellipse cx="12" cy="3.4" rx="1.8" ry="2.6" fill="#f4d35e" stroke="#a87a16" stroke-width=".6"/></svg>`,
+  sol: '<svg viewBox="0 0 24 24"><path d="M2.5 20.5q9.5-17 19 0z" fill="#ffffff" stroke="#7d97a8" stroke-width=".9"/><path d="M12 7.5q6.5 4.5 9.5 13h-7z" fill="#d6e4ec"/><path d="M6.5 10.5l2-2 2 2-2 2z" fill="#fff" stroke="#7d97a8" stroke-width=".7"/><path d="M15.5 5.5l1.6-1.6 1.6 1.6-1.6 1.6z" fill="#fff" stroke="#7d97a8" stroke-width=".7"/></svg>',
+};
+const icon = (r, size = 16) => `<span class="ri" style="width:${size}px;height:${size}px">${RES_SVG[r]}</span>`;
 const TERRAIN = {
   les: { name: 'Les', color: '#3f8a52', res: 'drevo' },
   lom: { name: 'Lom', color: '#97a2b0', res: 'kamen' },
@@ -72,6 +85,11 @@ function toast(msg, info) {
 
 function show(screen) {
   for (const s of ['home', 'lobby', 'game']) $(s).hidden = s !== screen;
+  // ilustrácia a mapa zdieľajú SVG definície (id) – ilustrácia smie existovať len na úvode
+  if (typeof renderHero === 'function') {
+    if (screen === 'home') renderHero();
+    else if ($('hero')) $('hero').innerHTML = '';
+  }
 }
 
 // ---------- spojenie ----------
@@ -248,7 +266,7 @@ const me = () => S.players.find(p => p.id === S.me);
 const pl = id => S.players.find(p => p.id === id);
 const myTurn = () => S.current === S.me && (S.phase === 'setup' || S.phase === 'play');
 const canPay = cost => RES.every(r => me().res[r] >= (cost[r] || 0));
-const costStr = c => RES.filter(r => c[r]).map(r => `${c[r] > 1 ? c[r] : ''}${RES_ICON[r]}`).join(' ');
+const costStr = c => RES.filter(r => c[r]).map(r => `<span class="cst">${c[r] > 1 ? c[r] : ''}${icon(r, 14)}</span>`).join('');
 
 function renderStatus() {
   const st = $('status');
@@ -360,16 +378,16 @@ function saltPile(x, y, s = 1) {
   </g>`;
 }
 function wave(x, y, s = 1) {
-  return `<path transform="translate(${x},${y}) scale(${s})" d="M-12,0 q4,-5 8,0 t8,0 t8,0" fill="none" stroke="#bde0fe" stroke-width="2" stroke-linecap="round" opacity=".75"/>`;
+  return `<g transform="translate(${x},${y}) scale(${s})"><path class="wv" d="M-12,0 q4,-5 8,0 t8,0 t8,0" fill="none" stroke="#bde0fe" stroke-width="2" stroke-linecap="round" opacity=".75"/></g>`;
 }
 function cloud(x, y, s = 1, c = '#2f4a6a') {
-  return `<g transform="translate(${x},${y}) scale(${s})" fill="${c}">
-    <circle cx="-8" cy="2" r="7"/><circle cx="0" cy="-3" r="9"/><circle cx="9" cy="2" r="7"/><rect x="-15" y="2" width="31" height="7" rx="3.5"/></g>`;
+  return `<g transform="translate(${x},${y}) scale(${s})"><g class="cl" fill="${c}">
+    <circle cx="-8" cy="2" r="7"/><circle cx="0" cy="-3" r="9"/><circle cx="9" cy="2" r="7"/><rect x="-15" y="2" width="31" height="7" rx="3.5"/></g></g>`;
 }
 
 const TILE_DEFS = (() => {
   const grad = (id, a, b) => `<radialGradient id="${id}" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></radialGradient>`;
-  const tile = (id, body) => `<g id="${id}" clip-path="url(#hexclip)">${body}</g>`;
+  const tile = (id, body) => `<g id="${id}" clip-path="url(#hexclip)">${body}<polygon points="${hexPts(0, 0)}" fill="url(#g-light)"/></g>`;
   const base = id => `<polygon points="${hexPts(0, 0)}" fill="url(#g-${id})"/>`;
   const dots = (c, n, seed) => {
     let out = '', v = seed;
@@ -391,6 +409,12 @@ const TILE_DEFS = (() => {
     ${grad('g-solnisko', '#f4f9fc', '#a9c3d3')}
     ${grad('g-more', '#4f9bd9', '#1b4f86')}
     ${grad('g-hmla', '#273d58', '#131f30')}
+    <linearGradient id="g-light" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".3"/></linearGradient>
+    <linearGradient id="g-ocean" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1f6aa8"/><stop offset="1" stop-color="#0c3157"/></linearGradient>
+    <radialGradient id="g-token" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#fffdf5"/><stop offset="1" stop-color="#e3d2a6"/></radialGradient>
+    <radialGradient id="g-token-hot" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#ffd38a"/><stop offset="1" stop-color="#e98a1c"/></radialGradient>
     <radialGradient id="g-glow"><stop offset="0" stop-color="#ffe680" stop-opacity=".9"/><stop offset="1" stop-color="#ffe680" stop-opacity="0"/></radialGradient>
     <filter id="f-shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity=".45"/></filter>
     <pattern id="p-furrow" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(-30)">
@@ -528,6 +552,19 @@ function roadsSvg(pos) {
   return low + high;
 }
 
+// Oceán okolo ostrova s pomaly sa pohybujúcimi vlnami
+function oceanSvg(x, y, w, h) {
+  let waves = '';
+  let v = 7;
+  for (let i = 0; i < 46; i++) {
+    v = (v * 9301 + 49297) % 233280; const wx = x + v / 233280 * w;
+    v = (v * 9301 + 49297) % 233280; const wy = y + v / 233280 * h;
+    v = (v * 9301 + 49297) % 233280; const sc = 0.7 + v / 233280 * 0.8;
+    waves += `<g transform="translate(${wx.toFixed(1)},${wy.toFixed(1)}) scale(${sc.toFixed(2)})"><path class="owv d${i % 4}" d="M-12,0 q4,-5 8,0 t8,0 t8,0" fill="none" stroke="#9fd1ff" stroke-width="2" stroke-linecap="round"/></g>`;
+  }
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="22" fill="url(#g-ocean)"/><g opacity=".35">${waves}</g>`;
+}
+
 function renderBoard() {
   const svg = $('board');
   const R = HEX_R;
@@ -535,12 +572,12 @@ function renderBoard() {
   const pos = h => [W * (h.q + h.r / 2), 1.5 * R * h.r];
   const xs = S.hexes.map(h => pos(h)[0]);
   const ys = S.hexes.map(h => pos(h)[1]);
-  const pad = R + 8;
+  const pad = R + 30;
   const minX = Math.min(...xs) - pad, minY = Math.min(...ys) - pad;
   svg.setAttribute('viewBox', `${minX} ${minY} ${Math.max(...xs) - minX + pad} ${Math.max(...ys) - minY + pad}`);
   const valid = validHexes();
   const lastNum = S.dice ? S.dice[0] : null;
-  let tiles = '', pieces = '', marks = '', banditPiece = '';
+  let tiles = '', seaTiles = '', shore = '', pieces = '', marks = '', banditPiece = '';
   const banditMoved = lastBandits !== undefined && lastBandits !== S.bandits;
   lastBandits = S.bandits;
   for (const h of S.hexes) {
@@ -548,15 +585,23 @@ function renderBoard() {
     const id = h.revealed ? h.terrain : 'hmla';
     const flip = ((h.q * 7 + h.r * 13) & 1) ? -1 : 1;
     let inner = `<use href="#t-${id}" transform="translate(${x},${y}) scale(${flip},1)"/>
-      <polygon points="${hexPts(x, y, R - 3)}" fill="none" stroke="#ffffff" stroke-opacity=".18" stroke-width="2"/>
-      <polygon class="edge" points="${hexPts(x, y)}" fill="none" stroke="#0b1520" stroke-width="2.5"/>`;
+      <polygon points="${hexPts(x, y, R - 2.5)}" fill="none" stroke="#ffffff" stroke-opacity=".14" stroke-width="1.5"/>
+      <polygon class="edge" points="${hexPts(x, y)}" fill="none" stroke="#0b1520" stroke-opacity=".55" stroke-width="1.6"/>`;
     if (h.revealed && h.terrain !== 'more') {
       const hot = h.num === lastNum && S.rolled;
-      inner += `<g class="token${hot && freshRoll ? ' pop' : ''}"><ellipse cx="${x}" cy="${y + 4}" rx="15" ry="14" fill="#0005"/>
-        <circle cx="${x}" cy="${y + 2}" r="14" fill="${hot ? '#f2a541' : '#f7f0dc'}" stroke="${hot ? '#fff' : '#8b6f47'}" stroke-width="2"/>
+      inner += `<g class="token${hot && freshRoll ? ' pop' : ''}"><ellipse cx="${x + 1}" cy="${y + 5}" rx="15" ry="14" fill="#0006"/>
+        <circle cx="${x}" cy="${y + 2}" r="14" fill="url(#${hot ? 'g-token-hot' : 'g-token'})" stroke="${hot ? '#fff' : '#8b6f47'}" stroke-width="2"/>
+        <circle cx="${x}" cy="${y + 2}" r="11" fill="none" stroke="${hot ? '#fff6' : '#8b6f4755'}" stroke-width="1"/>
         <text x="${x}" y="${y + 8}" text-anchor="middle" font-size="17" font-weight="800" fill="#2b2118" font-family="Georgia, serif">${h.num}</text></g>`;
     }
-    tiles += `<g class="hex${valid.has(h.k) ? ' valid' : ''}" data-k="${h.k}">${inner}</g>`;
+    const tileG = `<g class="hex${valid.has(h.k) ? ' valid' : ''}" data-k="${h.k}">${inner}</g>`;
+    if (h.revealed && h.terrain !== 'more') {
+      tiles += tileG;
+      shore += `<polygon points="${hexPts(x, y, R + 10)}" fill="#e0f2ff" fill-opacity=".16"/>`;
+      shore += `<polygon points="${hexPts(x, y, R + 5)}" fill="#e6cf95" stroke="#bfa063" stroke-width="1"/>`;
+    } else {
+      seaTiles += tileG;
+    }
     if (valid.has(h.k)) marks += `<polygon class="hl" points="${hexPts(x, y, R - 2)}"/>`;
     if (h.building) {
       const c = pl(h.building.owner).color;
@@ -569,7 +614,8 @@ function renderBoard() {
       banditPiece = banditSvg(x, y - 22, banditMoved);
     }
   }
-  svg.innerHTML = TILE_DEFS + `<g filter="url(#f-shadow)">${tiles}</g><g pointer-events="none">${marks}${roadsSvg(pos)}${pieces}${banditPiece}</g>`;
+  const vb = svg.viewBox.baseVal;
+  svg.innerHTML = TILE_DEFS + oceanSvg(vb.x, vb.y, vb.width, vb.height) + `<g>${seaTiles}</g><g class="shore">${shore}</g><g filter="url(#f-shadow)">${tiles}</g><g pointer-events="none">${marks}${roadsSvg(pos)}${pieces}${banditPiece}</g>`;
   svg.querySelectorAll('.hex.valid').forEach(g => {
     g.onclick = () => {
       const k = g.dataset.k;
@@ -582,7 +628,7 @@ function renderBoard() {
     };
   });
   $('legend').innerHTML = Object.values(TERRAIN).map(t =>
-    `<span><i style="background:${t.color}"></i>${t.name}${t.res ? ' ' + RES_ICON[t.res] : ''}</span>`).join('')
+    `<span><i style="background:${t.color}"></i>${t.name}${t.res ? ' ' + icon(t.res, 14) : ''}</span>`).join('')
     + '<span>⛺ tábor</span><span>🏰 mesto</span><span>🗼 maják</span><span>⚓ prístav</span><span>🛤️ cesta</span><span>🦹 banditi</span>';
 }
 
@@ -637,7 +683,7 @@ function renderCards() {
 function renderMine() {
   const m = me();
   $('myPanel').innerHTML = `<h3>Tvoje suroviny</h3><div class="res">` +
-    RES.map(r => `<div>${RES_ICON[r]}<b>${m.res[r]}</b>${RES_NAMES[r]}</div>`).join('') + '</div>';
+    RES.map(r => `<div class="resbox">${icon(r, 28)}<b>${m.res[r]}</b>${RES_NAMES[r]}</div>`).join('') + '</div>';
 }
 
 function renderActions() {
@@ -698,7 +744,7 @@ function renderTrade() {
   let html = '<h3>Obchod</h3>';
   if (S.offer) {
     const from = pl(S.offer.from);
-    const fmt = o => RES.filter(r => o[r]).map(r => `${o[r]}× ${RES_ICON[r]}`).join(' ');
+    const fmt = o => RES.filter(r => o[r]).map(r => `<span class="cst">${o[r]}× ${icon(r, 15)}</span>`).join('');
     html += `<div class="offer"><div><b style="color:${from.color}">${esc(from.name)}</b> ponúka <b>${fmt(S.offer.give)}</b> za <b>${fmt(S.offer.want)}</b></div>
       ${S.offer.from === S.me ? '<button id="btnCancelOffer">Stiahnuť ponuku</button>'
         : `<button id="btnAccept" class="primary" ${canPay(S.offer.want) ? '' : 'disabled'}>Prijať obchod</button>`}</div>`;
@@ -708,12 +754,12 @@ function renderTrade() {
     const rates = S.bankRates || Object.fromEntries(RES.map(r => [r, S.bankRate]));
     const rateOpts = sel => RES.map(r => `<option value="${r}" ${r === sel ? 'selected' : ''}>${RES_ICON[r]} ${RES_NAMES[r]}</option>`).join('');
     html += `<p class="muted" style="margin:8px 0 4px">S bankou – kurz: ${RES.map(r =>
-        `<span class="rate${rates[r] === 2 ? ' best' : rates[r] === 3 ? ' good' : ''}" title="${rateWhy(rates[r], r)}">${RES_ICON[r]} ${rates[r]}:1</span>`).join(' ')}</p>
+        `<span class="rate${rates[r] === 2 ? ' best' : rates[r] === 3 ? ' good' : ''}" title="${rateWhy(rates[r], r)}">${icon(r, 14)}${rates[r]}:1</span>`).join(' ')}</p>
       <div class="row"><select id="bankGive">${rateOpts(bankGive)}</select><span style="align-self:center">➜</span>
       <select id="bankGet">${opts(bankGet)}</select><button id="btnBank">Vymeniť ${rates[bankGive]}:1</button></div>`;
     if (!S.offer) {
       html += `<p class="muted" style="margin:10px 0 4px">Ponuka hráčom</p><div class="tradeGrid"><span></span>
-        ${RES.map(r => `<span style="text-align:center">${RES_ICON[r]}</span>`).join('')}
+        ${RES.map(r => `<span style="text-align:center">${icon(r, 18)}</span>`).join('')}
         <span>Dám</span>${RES.map(r => `<input type="number" min="0" max="${me().res[r]}" data-g="${r}" value="${tradeDraft.give[r] || 0}">`).join('')}
         <span>Chcem</span>${RES.map(r => `<input type="number" min="0" max="20" data-w="${r}" value="${tradeDraft.want[r] || 0}">`).join('')}
         </div><button id="btnOffer" style="width:100%;margin-top:6px">Ponúknuť ostatným</button>`;
@@ -766,7 +812,7 @@ function renderPortTrade() {
   const mine = me();
   const hasPort = (mine.ports || 0) > 0;
   const offers = S.portOffers || [];
-  const fmt = o => RES.filter(r => o[r]).map(r => `${o[r]}× ${RES_ICON[r]}`).join(' ');
+  const fmt = o => RES.filter(r => o[r]).map(r => `<span class="cst">${o[r]}× ${icon(r, 15)}</span>`).join('');
   let html = '<h3 style="margin-top:14px">⚓ Námorný obchod</h3>';
   for (const o of offers) {
     const from = pl(o.from);
@@ -782,7 +828,7 @@ function renderPortTrade() {
   if (!offers.length) html += '<p class="muted">Zatiaľ žiadne ponuky.</p>';
   html += `<p class="muted" style="margin:8px 0 4px">${offers.some(o => o.from === S.me) ? 'Nová ponuka nahradí tvoju súčasnú.' : 'Ponuka pre hráčov s prístavom (platí 1 kolo)'}</p>
     <div class="tradeGrid"><span></span>
-    ${RES.map(r => `<span style="text-align:center">${RES_ICON[r]}</span>`).join('')}
+    ${RES.map(r => `<span style="text-align:center">${icon(r, 18)}</span>`).join('')}
     <span>Dám</span>${RES.map(r => `<input type="number" min="0" max="${mine.res[r]}" data-pg="${r}" value="${portDraft.give[r] || 0}">`).join('')}
     <span>Chcem</span>${RES.map(r => `<input type="number" min="0" max="20" data-pw="${r}" value="${portDraft.want[r] || 0}">`).join('')}
     </div><button id="btnPortOffer" style="width:100%;margin-top:6px">⚓ Poslať cez prístav</button>`;
@@ -806,5 +852,25 @@ function renderLog() {
   if (atBottom || renderLog.first !== false) el.scrollTop = el.scrollHeight;
   renderLog.first = false;
 }
+
+// Ilustrácia ostrova na úvodnej obrazovke
+function renderHero() {
+  const svg = $('hero');
+  if (!svg || svg.childElementCount) return;
+  const R = HEX_R, W = Math.sqrt(3) * R;
+  const cells = [[0, 0, 'pole'], [1, 0, 'les'], [0, 1, 'bana'], [-1, 1, 'solnisko'], [-1, 0, 'lom'], [0, -1, 'les'], [1, -1, 'more']];
+  let shore = '', tiles = '';
+  for (const [q, r, t] of cells) {
+    const x = W * (q + r / 2), y = 1.5 * R * r;
+    if (t !== 'more') {
+      shore += `<polygon points="${hexPts(x, y, R + 10)}" fill="#e0f2ff" fill-opacity=".16"/><polygon points="${hexPts(x, y, R + 5)}" fill="#e6cf95" stroke="#bfa063"/>`;
+    }
+    tiles += `<use href="#t-${t}" transform="translate(${x},${y})"/><polygon points="${hexPts(x, y)}" fill="none" stroke="#0b1520" stroke-opacity=".5" stroke-width="1.6"/>`;
+  }
+  svg.innerHTML = TILE_DEFS + oceanSvg(-150, -110, 300, 220) + shore + `<g filter="url(#f-shadow)">${tiles}</g>`
+    + campSvg(0, 26, '#e4572e') + townSvg(W, 24, '#2e86de') + lighthouseSvg(W + 27, 12, '#2e86de')
+    + portSvg(-W - 22, 14, '#f2c14e') + banditSvg(W / 2, 1.5 * R - 22, false);
+}
+renderHero();
 
 connect();

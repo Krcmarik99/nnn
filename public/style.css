@@ -169,3 +169,56 @@ select.lvl + button.small { margin-left: 0; }
 .rate { white-space: nowrap; }
 .rate.good { color: #7ee2a8; font-weight: 600; }
 .rate.best { color: #f2a541; font-weight: 700; }
+
+/* ===== vylepšená grafika ===== */
+body { font-family: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+h1, h2, h3, .cap, .banner { font-family: "Cinzel", Georgia, serif; }
+h1 { font-size: 2.1rem; letter-spacing: .02em; }
+h3 { letter-spacing: .08em; }
+body {
+  background:
+    radial-gradient(ellipse at 20% -10%, #2a5785 0%, transparent 55%),
+    radial-gradient(ellipse at 90% 110%, #123b5e 0%, transparent 50%),
+    linear-gradient(180deg, #0f2238, #0a1626) fixed;
+}
+.panel, .card, .status {
+  background: linear-gradient(180deg, #1c3048 0%, #16263a 100%);
+  border: 1px solid #2f4a6b;
+  box-shadow: 0 6px 18px #0006, inset 0 1px 0 #ffffff12;
+}
+.status.mine { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 6px 18px #0006; }
+button {
+  background: linear-gradient(180deg, #2a4566, #20364f);
+  box-shadow: inset 0 1px 0 #ffffff1a, 0 2px 4px #0004;
+  transition: transform .08s, border-color .15s, filter .15s;
+}
+button:hover:not(:disabled) { filter: brightness(1.12); }
+button:active:not(:disabled) { transform: translateY(1px); }
+button.primary { background: linear-gradient(180deg, #ffbf5e, #ef9a2a); border-color: #ffbf5e; text-shadow: 0 1px 0 #fff6; }
+button.ghost { background: transparent; box-shadow: none; }
+
+.ri { display: inline-flex; vertical-align: -3px; }
+.ri svg { width: 100%; height: 100%; filter: drop-shadow(0 1px 1px #0007); }
+.cst { display: inline-flex; align-items: center; gap: 1px; margin-right: 4px; white-space: nowrap; }
+.btns small { display: flex; justify-content: center; flex-wrap: wrap; margin-top: 3px; }
+.res .resbox { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px 6px;
+  background: linear-gradient(180deg, #0f1c2b, #13243a); border: 1px solid #ffffff10; }
+.res .resbox b { font-size: 1.25rem; }
+
+/* animácie na mape */
+.wv { animation: wv 2.8s ease-in-out infinite alternate; }
+.owv { animation: owv 6s ease-in-out infinite alternate; }
+.owv.d1 { animation-duration: 7s; animation-delay: -2s; }
+.owv.d2 { animation-duration: 5.5s; animation-delay: -4s; }
+.owv.d3 { animation-duration: 8s; animation-delay: -1s; }
+.cl { animation: cl 9s ease-in-out infinite alternate; }
+@keyframes wv { from { translate: -2px 0; } to { translate: 2px 0; } }
+@keyframes owv { from { translate: -6px 0; opacity: .5; } to { translate: 6px 1px; opacity: 1; } }
+@keyframes cl { from { translate: -3px 0; } to { translate: 4px -1px; } }
+@media (prefers-reduced-motion: reduce) { .wv, .owv, .cl { animation: none; } }
+#board { filter: drop-shadow(0 10px 24px #0008); }
+
+/* úvod */
+.hero { width: 100%; max-width: 360px; margin: -6px auto 0; display: block; }
+.title { text-align: center; margin-bottom: 0; }
+.subtitle { text-align: center; margin-top: 0; }
