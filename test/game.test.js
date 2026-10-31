@@ -308,3 +308,33 @@ test('rozvojové karty: kúpa, zákaz hrania v ťahu kúpy, max. 1 za ťah, efek
   assert.strictEqual(p.discoveries, disc + 1);
   assert.strictEqual(p.devCards.length, 0);
 });
+
+test('najdlhšia cesta: reťaz 4+ stavieb na susedných poliach dá +2 body, prebratie len pri dlhšej', () => {
+  const g = new Game({ rng: seeded(3) });
+  g.addPlayer('A'); g.addPlayer('B');
+  g.start(20);
+  for (const k in g.hexes) g.hexes[k].building = null;
+  const [a, b] = g.players;
+  g.phase = 'play';
+  const put = (k, pid) => { g.hexes[k] = { ...g.hexes[k], revealed: true, terrain: 'les', num: 1 }; g.hexes[k].building = { owner: pid, type: 'camp' }; };
+  // A: rovná línia (0,0),(1,0),(2,0) + odbočka (0,1) → najdlhšia cesta = 4 ((0,1)-(0,0)-(1,0)-(2,0))
+  ['0,0', '1,0', '2,0'].forEach(k => put(k, a.id));
+  assert.strictEqual(g.longestPath(a.id).length, 3);
+  g.updateRoad();
+  assert.strictEqual(g.roadHolder, null, 'pod 4 stavby titul nie je');
+  put('-1,1', a.id);
+  assert.strictEqual(g.longestPath(a.id).length, 4);
+  const vp = g.vp(a);
+  g.updateRoad();
+  assert.strictEqual(g.roadHolder, a.id);
+  assert.strictEqual(g.vp(a), vp + 2);
+  // B s rovnakou dĺžkou titul nepreberie
+  ['0,-2', '1,-2', '2,-2', '3,-3'].forEach(k => put(k, b.id));
+  g.updateRoad();
+  assert.strictEqual(g.roadHolder, a.id);
+  // dlhšia cesta titul preberie
+  put('-1,-1', b.id); put('-1,-2', b.id); // napojenie: (-1,-1)-(0,-2)? sused (0,-2) je (-1,-1)
+  assert.ok(g.longestPath(b.id).length >= 5, 'B má aspoň 5');
+  g.updateRoad();
+  assert.strictEqual(g.roadHolder, b.id);
+});

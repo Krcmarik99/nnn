@@ -76,6 +76,8 @@ otvoriť `http://<IP-tvojho-počítača>:3000`.
 - **Prístav** (2 drevo, ruda, obilie): na pobrežnej stavbe, 1 b., max. 2. Hráči s prístavom si
   môžu posielať **námorné ponuky kedykoľvek, aj mimo svojho ťahu**. Ponuka platí jedno celé kolo,
   každý hráč môže mať naraz jednu a prijať ju môže len hráč s prístavom.
+- **Najdlhšia cesta:** tvoje stavby na susedných poliach tvoria cestu (na mape sú spojené čiarou).
+  Kto má najdlhšiu reťaz stavieb za sebou (aspoň 4), získa +2 body; titul prevezme len hráč s dlhšou cestou.
 - **Rozvojové karty** (obilie, ruda, soľ): náhodná karta z balíčka (18 kariet). Hrá sa po hode,
   najskôr v ďalšom ťahu po kúpe, max. jedna za ťah. Ostatní vidia len počet tvojich kariet.
   - 🗺️ **Mapa pokladu** (3×) – odkry ľubovoľné zahalené pole, z pevniny získaš 2 suroviny.

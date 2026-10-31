@@ -70,6 +70,12 @@ function spotScore(g, p, h) {
     // ťažký bot počíta aj s tým, koľko jeho stavieb už má rovnaké číslo/surovinu
     s += mine.filter(x => x.num === h.num).length * -0.6;
     if (g.bandits && g.hexes[g.bandits] === h) s -= 3; // pole s banditmi nič nevyprodukuje
+    // predĺženie najdlhšej cesty
+    if (g.phase === 'play' && g.longestPath) {
+      const cur = g.longestPath(p.id).length;
+      const next = g.longestPath(p.id, h.q + ',' + h.r).length;
+      if (next > cur) s += next >= 3 ? 1.2 : 0.5;
+    }
   }
   return s + Math.random() * lv(p).noise;
 }

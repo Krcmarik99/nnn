@@ -37,6 +37,7 @@ const RULES = `
   <li>🗼 <b>Maják</b> (2 kameň, drevo, soľ) – na pobrežnej stavbe, 1 bod, výmena s bankou 3:1 a ochrana pred pirátmi. Max. 3.</li>
   </ul></li>
 <li>⚓ <b>Prístav</b> (2 drevo, ruda, obilie) – na pobrežnej stavbe, 1 bod. Max. 2. Hráči s prístavom si môžu posielať <b>námorné ponuky kedykoľvek</b>, aj mimo svojho ťahu. Ponuka platí jedno celé kolo a prijať ju môže len hráč s prístavom.</li>
+<li>🛤️ <b>Najdlhšia cesta</b>: tvoje stavby na susedných poliach tvoria cestu. Kto má najdlhšiu reťaz stavieb za sebou (aspoň 4), získa <b>+2 body</b>. Titul prevezme len hráč s dlhšou cestou.</li>
 <li>🎴 <b>Rozvojové karty</b> (obilie, ruda, soľ): kúpiš náhodnú kartu z balíčka. Zahrať ju môžeš po hode, najskôr v ďalšom ťahu, a len jednu za ťah. Karty: 🗺️ Mapa pokladu, 🛒 Kupec, 🌾 Bohatá úroda, 🔨 Stavitelia, 🏴‍☠️ Pašeráci, 📜 Kráľovská listina, 🧭 Lodný kompas.</li>
 <li>🧭 <b>Výprava</b> (drevo, obilie): odkry zahalené políčko vedľa svojej stavby. Ak je to pevnina, dostaneš 1 jej surovinu. Kto má najviac objavov (aspoň 3), je <b>Veľký objaviteľ</b> (+2 body).</li>
 <li>🦹 <b>Banditi</b> začínajú v horách (na baníckom poli). Keď je súčet oboch kociek <b>7</b>, hráč na ťahu ich môže presunúť na ľubovoľnú odkrytú pevninu (alebo nechať na mieste). Pole s banditmi nič neprodukuje.</li>
@@ -497,6 +498,34 @@ function banditSvg(x, y, fresh) {
   </g>`;
 }
 
+// Cesty: spojnice medzi susednými stavbami toho istého hráča; najdlhšia cesta je zvýraznená
+function roadsSvg(pos) {
+  const m = hexMap();
+  const path = S.roadPath || [];
+  const onPath = new Set(path.slice(1).map((k, i) => [path[i], k].sort().join('|')));
+  let low = '', high = '';
+  for (const h of S.hexes) {
+    if (!h.building) continue;
+    for (const [dq, dr] of DIRS) {
+      const n = m[(h.q + dq) + ',' + (h.r + dr)];
+      if (!n || !n.building || n.building.owner !== h.building.owner || n.k < h.k) continue;
+      const [x1, y1] = pos(h);
+      const [x2, y2] = pos(n);
+      const c = pl(h.building.owner).color;
+      const d = `M${x1},${y1 + 30} L${x2},${y2 + 30}`;
+      if (onPath.has([h.k, n.k].sort().join('|'))) {
+        high += `<path d="${d}" stroke="#ffe08a" stroke-width="11" stroke-linecap="round" opacity=".55"/>
+          <path d="${d}" stroke="#2b1d0e" stroke-width="7" stroke-linecap="round"/>
+          <path d="${d}" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/>`;
+      } else {
+        low += `<path d="${d}" stroke="#2b1d0e" stroke-width="5.5" stroke-linecap="round" opacity=".8"/>
+          <path d="${d}" stroke="${c}" stroke-width="3" stroke-linecap="round" stroke-dasharray="6 5"/>`;
+      }
+    }
+  }
+  return low + high;
+}
+
 function renderBoard() {
   const svg = $('board');
   const R = HEX_R;
@@ -538,7 +567,7 @@ function renderBoard() {
       banditPiece = banditSvg(x, y - 22, banditMoved);
     }
   }
-  svg.innerHTML = TILE_DEFS + `<g filter="url(#f-shadow)">${tiles}</g><g pointer-events="none">${marks}${pieces}${banditPiece}</g>`;
+  svg.innerHTML = TILE_DEFS + `<g filter="url(#f-shadow)">${tiles}</g><g pointer-events="none">${marks}${roadsSvg(pos)}${pieces}${banditPiece}</g>`;
   svg.querySelectorAll('.hex.valid').forEach(g => {
     g.onclick = () => {
       const k = g.dataset.k;
@@ -552,7 +581,7 @@ function renderBoard() {
   });
   $('legend').innerHTML = Object.values(TERRAIN).map(t =>
     `<span><i style="background:${t.color}"></i>${t.name}${t.res ? ' ' + RES_ICON[t.res] : ''}</span>`).join('')
-    + '<span>⛺ tábor</span><span>🏰 mesto</span><span>🗼 maják</span><span>⚓ prístav</span><span>🦹 banditi</span>';
+    + '<span>⛺ tábor</span><span>🏰 mesto</span><span>🗼 maják</span><span>⚓ prístav</span><span>🛤️ cesta</span><span>🦹 banditi</span>';
 }
 
 function renderPlayers() {
@@ -560,7 +589,7 @@ function renderPlayers() {
     <div class="prow ${p.id === S.current ? 'cur' : ''} ${p.online ? '' : 'off'}">
       <span class="dot" style="background:${p.color}"></span>
       <span class="nm">${esc(p.name)}${p.bot ? ` <small>${(LEVEL_NAMES[p.level] || '').split(' ')[0]}</small>` : ''}${p.id === S.me ? ' (ty)' : ''}${p.online ? '' : ' 📴'}<br>
-        <small>🃏 ${p.cards} · ⛺${p.camps} 🏰${p.towns} 🗼${p.lighthouses} ⚓${p.ports || 0} · 🧭${p.discoveries}${S.explorer === p.id ? ' 🏅' : ''} · 📜${p.contracts.length} · 🎴${p.devCount || 0}</small></span>
+        <small class="stats">🃏 ${p.cards} · ⛺${p.camps} 🏰${p.towns} 🗼${p.lighthouses} ⚓${p.ports || 0} · 🧭${p.discoveries}${S.explorer === p.id ? ' 🏅' : ''} · 📜${p.contracts.length} · 🎴${p.devCount || 0} · 🛤️${p.roadLen || 0}${S.roadHolder === p.id ? ' ⭐' : ''}</small></span>
       <span class="vp">${p.vp}</span>
     </div>`).join('')
     + (S.phase !== 'ended' && pl(S.current) && !pl(S.current).online && S.current !== S.me
