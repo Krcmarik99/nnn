@@ -68,8 +68,10 @@ otvoriť `http://<IP-tvojho-počítača>:3000`.
 
 - **Mapa:** 37 šesťuholníkov. Stred je odkrytý, vonkajší okruh je v hmle.
 - **Príprava:** každý položí 2 tábory (poradie tam a späť) a dostane surovinu z každého z nich.
-- **Ťah:** hoď **kockou produkcie** a **kockou udalostí**. Stavby na políčkach s padnutým číslom produkujú (tábor 1, mesto 2).
-  Na kocke udalostí 1 sa ťahá karta udalosti, 6 znamená Trhový deň (výmena s bankou 2:1).
+- **Ťah:** hoď dvoma klasickými kockami (bielou a fialovou) – čísla sa **sčítajú** (2–12). Stavby na poliach
+  so súčtom kociek produkujú (tábor 1, mesto 2). Polia majú čísla 2–12 okrem 7 (častejšie súčty sú na viacerých
+  poliach, bodky pod číslom ukazujú pravdepodobnosť). Fialová kocka navyše určuje udalosť:
+  1 = karta udalosti, 6 = Trhový deň (výmena s bankou 2:1).
 - **Banditi:** začínajú v horách (na baníckom poli). Keď je súčet oboch kociek 7, hráč na ťahu
   ich môže presunúť na ľubovoľnú odkrytú pevninu alebo nechať na mieste. Pole s banditmi nič neprodukuje.
 - **Stavby** (jedna na políčko): Tábor 1 b., Mesto 2 b., Maják 1 b. (na pobreží, výmena 3:1, ochrana pred pirátmi).

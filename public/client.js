@@ -40,9 +40,10 @@ const RULES = `
 <ul>
 <li><b>Mapa:</b> šesťuholníkové súostrovie. Stred je odkrytý, vonkajší okruh je zahalený v hmle a treba ho objaviť.</li>
 <li><b>Príprava:</b> hráči postupne (tam a späť) položia 2 tábory na ľubovoľnú voľnú odkrytú pevninu. Za každý dostanú 1 surovinu z jej políčka.</li>
-<li><b>Hod:</b> na začiatku ťahu hodíš dvoma kockami – <b>kockou produkcie</b> a <b>kockou udalostí</b>.
-  Každá stavba na políčku s číslom kocky produkcie dá majiteľovi surovinu (tábor 1, mesto 2).</li>
-<li><b>Kocka udalostí:</b> 1 = ťahá sa karta udalosti (Búrka, Hojnosť, Piráti, Obchodná loď, Sucho, Nález). 6 = Trhový deň – meníš s bankou 2:1.</li>
+<li><b>Hod:</b> na začiatku ťahu hodíš dvoma klasickými kockami – bielou a fialovou – a čísla sa <b>sčítajú</b> (2–12).
+  Každá stavba na poli so súčtom kociek dá majiteľovi surovinu (tábor 1, mesto 2). Polia majú čísla 2–12 okrem 7;
+  bodky pod číslom ukazujú, ako často padá (6 a 8 najčastejšie, 2 a 12 najzriedkavejšie).</li>
+<li><b>Fialová kocka</b> navyše určuje udalosť: 1 = ťahá sa karta udalosti (Búrka, Hojnosť, Piráti, Obchodná loď, Sucho, Nález). 6 = Trhový deň – meníš s bankou 2:1.</li>
 <li><b>Stavby</b> zaberajú celé políčko (jedna stavba na políčko):
   <ul>
   <li>⛺ <b>Tábor</b> (drevo, kameň, obilie) – 1 bod. Musí susediť s tvojou stavbou. Max. 6.</li>
@@ -172,7 +173,7 @@ function applyState(next, prev, afterRoll) {
     const d = S.lastRoll.dice[1];
     // banditi zablokovali produkciu?
     const bh = S.bandits && S.hexes.find(h => h.k === S.bandits);
-    if (bh && bh.building && bh.num === S.lastRoll.dice[0]) {
+    if (bh && bh.building && bh.num === S.lastRoll.dice[0] + S.lastRoll.dice[1]) {
       anims.block = { kind: 'block', t0: performance.now() };
       renderBoard();
       setTimeout(() => FX.sound('block'), 250);
@@ -295,7 +296,7 @@ function renderStatus() {
   } else if (S.phase === 'setup') {
     txt = myTurn() ? `Príprava (kolo ${S.setupRound}/2): klikni na voľnú pevninu a polož tábor.` : `Príprava: ${esc(cur.name)} kladie tábor…`;
   } else {
-    const dice = S.dice ? ` · 🎲 produkcia <b>${S.dice[0]}</b> ${DIE[S.dice[0]]}, udalosť ${DIE[S.dice[1]]}` : '';
+    const dice = S.dice ? ` · 🎲 ${DIE[S.dice[0]]} ${S.dice[0]} + ${DIE[S.dice[1]]} ${S.dice[1]} = <b>${S.dice[0] + S.dice[1]}</b>` : '';
     txt = (myTurn() ? (S.rolled ? 'Tvoj ťah' : 'Tvoj ťah – hoď kockami!') : `Na ťahu: ${esc(cur.name)}`) + dice
       + (S.market ? ' · 🛒 Trhový deň' : '');
   }
@@ -723,6 +724,14 @@ function oceanSvg(x, y, w, h) {
     <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#g-vignette)"/></g>`;
 }
 
+// bodky pod číslom: koľkými spôsobmi sa dá súčet hodiť (1–5)
+function numberDots(x, y, n, hot) {
+  const k = 6 - Math.abs(7 - n);
+  let out = '';
+  for (let i = 0; i < k; i++) out += `<circle cx="${(x + (i - (k - 1) / 2) * 3.1).toFixed(1)}" cy="${y}" r="1.05" fill="${hot ? '#fff' : n === 6 || n === 8 ? '#7a1e12' : '#4a3a28'}"/>`;
+  return out;
+}
+
 function renderBoard() {
   const svg = $('board');
   const R = HEX_R;
@@ -734,7 +743,7 @@ function renderBoard() {
   const minX = Math.min(...xs) - pad, minY = Math.min(...ys) - pad;
   svg.setAttribute('viewBox', `${minX} ${minY} ${Math.max(...xs) - minX + pad} ${Math.max(...ys) - minY + pad}`);
   const valid = validHexes();
-  const lastNum = S.dice ? S.dice[0] : null;
+  const lastNum = S.dice ? S.dice[0] + S.dice[1] : null; // produkuje súčet oboch kociek
   let tiles = '', seaTiles = '', shore = '', pieces = '', marks = '', banditPiece = '', fxLayer = '';
   const landTiles = [];
   const DEPTH = 7; // hrúbka ostrova – pevnina je vyvýšená ako na makete
@@ -771,7 +780,8 @@ function renderBoard() {
       inner += `<g class="token${hot && freshRoll ? ' pop' : ''}"><ellipse cx="${x + 1}" cy="${y + 5}" rx="15" ry="14" fill="#0006"/>
         <circle cx="${x}" cy="${y + 2}" r="14" fill="url(#${hot ? 'g-token-hot' : 'g-token'})" stroke="${hot ? '#fff' : '#8b6f47'}" stroke-width="2"/>
         <circle cx="${x}" cy="${y + 2}" r="11" fill="none" stroke="${hot ? '#fff6' : '#8b6f4755'}" stroke-width="1"/>
-        <text x="${x}" y="${y + 8}" text-anchor="middle" font-size="17" font-weight="800" fill="#2b2118" font-family="Georgia, serif">${h.num}</text></g>`;
+        <text x="${x}" y="${y + 6}" text-anchor="middle" font-size="${h.num > 9 ? 13.5 : 15.5}" font-weight="800" fill="${h.num === 6 || h.num === 8 ? '#7a1e12' : '#2b2118'}" font-family="Georgia, serif">${h.num}</text>
+        ${numberDots(x, y + 11, h.num, hot)}</g>`;
     }
     const ra = animOf(h.k + ':r');
     const tileG = `<g class="hex${valid.has(h.k) ? ' valid' : ''}${ra ? ' anim t-reveal' : ''}" data-k="${h.k}"${ra ? ` style="${ra.style}"` : ''}>${inner}</g>`;

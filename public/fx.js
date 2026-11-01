@@ -209,7 +209,7 @@ const FX = (() => {
       ov.classList.add('landed');
       if (ev === 1) ov.classList.add('ev1');
       if (ev === 6) ov.classList.add('ev6');
-      cap.textContent = `${caption} · produkcia ${prod}` + (ev === 1 ? ' · ⚡ udalosť!' : ev === 6 ? ' · 🛒 Trhový deň' : '')
+      cap.textContent = `${caption} · ${prod} + ${ev} = ${prod + ev}` + (ev === 1 ? ' · ⚡ udalosť!' : ev === 6 ? ' · 🛒 Trhový deň' : '')
         + (prod + ev === 7 ? ' · 🦹 banditi!' : '');
       sound('land');
       onLanded();
