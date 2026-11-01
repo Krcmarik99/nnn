@@ -258,3 +258,33 @@ svg .anim, svg .anim * { animation-delay: var(--t, 0ms); }
   .anim, .anim * { animation: none !important; }
   .dust, .ring, .spark, .beam, .ripple, .floatvp { display: none; }
 }
+
+/* ===== animácie obchodu ===== */
+.flyer { position: fixed; z-index: 30; pointer-events: none; width: 30px; height: 30px; display: flex;
+  filter: drop-shadow(0 4px 6px #000a); }
+.prow.got, .resbox.got { animation: gotPulse .5s ease-out; }
+@keyframes gotPulse { 0% { box-shadow: 0 0 0 0 #ffe08a; } 40% { box-shadow: 0 0 0 4px #ffe08aaa; background-color: #ffe08a22; } 100% { box-shadow: 0 0 0 0 #ffe08a00; } }
+.resbox { position: relative; }
+.delta { position: absolute; top: 2px; right: 4px; font-weight: 800; font-size: .85rem; pointer-events: none;
+  animation: deltaUp 1.6s ease-out both; text-shadow: 0 1px 2px #000; }
+.delta.pos { color: #7ee2a8; }
+.delta.neg { color: #ff8a7a; }
+@keyframes deltaUp { 0% { opacity: 0; translate: 0 6px; } 15% { opacity: 1; translate: 0 0; } 75% { opacity: 1; } 100% { opacity: 0; translate: 0 -14px; } }
+.resbox.gain b { animation: numGain .6s ease-out; }
+.resbox.loss b { animation: numLoss .6s ease-out; }
+@keyframes numGain { 40% { color: #7ee2a8; scale: 1.3; } }
+@keyframes numLoss { 40% { color: #ff8a7a; scale: .85; } }
+.resbox b { display: inline-block; }
+#bankBadge { position: fixed; z-index: 29; translate: -50% -50%; pointer-events: none; display: none;
+  flex-direction: column; align-items: center; gap: 2px; padding: 10px 14px; border-radius: 16px;
+  background: radial-gradient(circle at 50% 30%, #3b5f86, #1a2e45); border: 2px solid #f2c14e; box-shadow: 0 0 24px #f2c14e66, 0 8px 20px #0009; }
+#bankBadge span { font-size: 2rem; line-height: 1; }
+#bankBadge small { color: #f2c14e; font-weight: 800; font-family: "Cinzel", Georgia, serif; }
+#bankBadge.show { display: flex; animation: bankPop 1.9s ease-out both; }
+@keyframes bankPop { 0% { opacity: 0; scale: .4; } 12% { opacity: 1; scale: 1.1; } 20% { scale: 1; } 85% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: .8; } }
+.handshake { position: fixed; z-index: 31; translate: -50% -50%; pointer-events: none; font-size: 2rem;
+  animation: shake 1.5s ease-out both; filter: drop-shadow(0 3px 6px #000a); }
+@keyframes shake { 0% { opacity: 0; scale: .3; } 20% { opacity: 1; scale: 1.25; } 30% { rotate: -12deg; } 40% { rotate: 12deg; } 50% { rotate: -8deg; scale: 1; } 60% { rotate: 0deg; } 85% { opacity: 1; } 100% { opacity: 0; translate: -50% -80%; } }
+@media (prefers-reduced-motion: reduce) {
+  .delta, .resbox b, #bankBadge.show, .handshake, .prow.got, .resbox.got { animation: none !important; }
+}

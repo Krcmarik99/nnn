@@ -154,6 +154,10 @@ function applyState(next, prev, afterRoll) {
   freshRoll = afterRoll;
   render();
   freshRoll = false;
+  // animácia obchodu (aj pri prvom stave si len zapamätáme posledný obchod)
+  const lt = S.lastTrade;
+  if (!prev || lastTradeN === null) lastTradeN = lt ? lt.n : 0;
+  else if (lt && lt.n !== lastTradeN) { lastTradeN = lt.n; animateTrade(lt); }
   if (!prev || prev.phase === 'lobby' && S.phase === 'lobby') return;
   const cards = st => { const p = st.players.find(x => x.id === st.me); return p ? p.cards : 0; };
   const sum = (st, f) => st.players.reduce((a, p) => a + (p[f] || 0), 0);
@@ -168,7 +172,7 @@ function applyState(next, prev, afterRoll) {
     if (sum(S, 'camps') + sum(S, 'towns') * 2 + sum(S, 'lighthouses') > sum(prev, 'camps') + sum(prev, 'towns') * 2 + sum(prev, 'lighthouses')) FX.sound('build');
     else if (sum(S, 'discoveries') > sum(prev, 'discoveries')) FX.sound('explore');
     else if (prev.bandits && S.bandits !== prev.bandits) FX.sound('bandits');
-    else if (S.log.at(-1) !== prev.log.at(-1) && /prijíma (námorný )?obchod/.test(S.log.at(-1))) FX.sound('trade');
+
     if (S.log.at(-1) !== prev.log.at(-1) && / hrá kartu | kupuje rozvojovú kartu/.test(S.log.at(-1))) FX.sound('card');
     if (S.log.at(-1) !== prev.log.at(-1) && /verbuje vojaka|vyháňajú banditov/.test(S.log.at(-1))) FX.sound('army');
   }
@@ -242,6 +246,7 @@ function render() {
 }
 
 function renderLobby() {
+  prevMyRes = null;
   show('lobby');
   $('lobbyCode').textContent = S.code;
   $('shareLink').value = `${location.origin}${location.pathname}?party=${S.code}`;
@@ -710,7 +715,7 @@ function renderBoard() {
 
 function renderPlayers() {
   $('playersPanel').innerHTML = `<h3>Hráči · cieľ ${S.target} b.</h3>` + S.players.map(p => `
-    <div class="prow ${p.id === S.current ? 'cur' : ''} ${p.online ? '' : 'off'}">
+    <div class="prow ${p.id === S.current ? 'cur' : ''} ${p.online ? '' : 'off'}" data-pid="${p.id}">
       <span class="dot" style="background:${p.color}"></span>
       <span class="nm">${esc(p.name)}${p.bot ? ` <small>${(LEVEL_NAMES[p.level] || '').split(' ')[0]}</small>` : ''}${p.id === S.me ? ' (ty)' : ''}${p.online ? '' : ' 📴'}<br>
         <small class="stats">🃏 ${p.cards} · ⛺${p.camps} 🏰${p.towns} 🗼${p.lighthouses} ⚓${p.ports || 0} · 🧭${p.discoveries}${S.explorer === p.id ? ' 🏅' : ''} · 📜${p.contracts.length} · 🎴${p.devCount || 0} · 🛤️${p.roadLen || 0}${S.roadHolder === p.id ? ' ⭐' : ''} · ⚔️${p.soldiers || 0}${S.armyHolder === p.id ? ' 🎖️' : ''}</small></span>
@@ -756,10 +761,113 @@ function renderCards() {
   });
 }
 
+let prevMyRes = null;
 function renderMine() {
   const m = me();
   $('myPanel').innerHTML = `<h3>Tvoje suroviny</h3><div class="res">` +
-    RES.map(r => `<div class="resbox">${icon(r, 28)}<b>${m.res[r]}</b>${RES_NAMES[r]}</div>`).join('') + '</div>';
+    RES.map(r => `<div class="resbox" data-res="${r}">${icon(r, 28)}<b>${m.res[r]}</b>${RES_NAMES[r]}</div>`).join('') + '</div>';
+  // +N / −N pri každej zmene surovín
+  if (prevMyRes && S.phase !== 'lobby') {
+    for (const r of RES) {
+      const d = m.res[r] - prevMyRes[r];
+      if (!d) continue;
+      const box = $('myPanel').querySelector(`[data-res="${r}"]`);
+      const tag = document.createElement('span');
+      tag.className = 'delta ' + (d > 0 ? 'pos' : 'neg');
+      tag.textContent = (d > 0 ? '+' : '−') + Math.abs(d);
+      box.appendChild(tag);
+      box.classList.add(d > 0 ? 'gain' : 'loss');
+    }
+  }
+  prevMyRes = { ...m.res };
+}
+
+// ---------- animácie obchodu ----------
+let lastTradeN = null;
+const reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const centerOf = el => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+
+function bankAnchor() {
+  let b = document.getElementById('bankBadge');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'bankBadge';
+    b.innerHTML = '<span>🏦</span><small>Banka</small>';
+    document.body.appendChild(b);
+  }
+  const area = document.querySelector('.boardArea');
+  const c = area ? centerOf(area) : { x: innerWidth / 2, y: innerHeight / 2 };
+  const y = Math.min(Math.max(c.y, 90), innerHeight - 90);
+  b.style.left = c.x + 'px';
+  b.style.top = y + 'px';
+  b.classList.remove('show');
+  void b.offsetWidth; // reštart CSS animácie
+  b.classList.add('show');
+  clearTimeout(bankAnchor.tm);
+  bankAnchor.tm = setTimeout(() => b.classList.remove('show'), 1900);
+  return { x: c.x, y };
+}
+
+function anchorFor(pid, r, bank) {
+  if (pid === null) return bank;
+  if (pid === S.me) {
+    const box = document.querySelector(`#myPanel [data-res="${r}"]`);
+    if (box) return { ...centerOf(box), el: box };
+  }
+  const row = document.querySelector(`#playersPanel .prow[data-pid="${pid}"]`);
+  if (!row) return null;
+  return { ...centerOf(row.querySelector('.dot') || row), el: row };
+}
+
+function flyIcon(r, from, to, delay) {
+  const el = document.createElement('div');
+  el.className = 'flyer';
+  el.innerHTML = icon(r, 30);
+  el.style.left = from.x - 15 + 'px';
+  el.style.top = from.y - 15 + 'px';
+  document.body.appendChild(el);
+  const dx = to.x - from.x, dy = to.y - from.y;
+  const lift = -Math.min(140, 40 + Math.hypot(dx, dy) * 0.22);
+  const a = el.animate([
+    { transform: 'translate(0,0) scale(.4) rotate(0deg)', opacity: 0 },
+    { transform: `translate(${dx * 0.5}px, ${dy * 0.5 + lift}px) scale(1.2) rotate(180deg)`, opacity: 1, offset: 0.5 },
+    { transform: `translate(${dx}px, ${dy}px) scale(.75) rotate(360deg)`, opacity: 0.95 },
+  ], { duration: 900, delay, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'backwards' });
+  a.onfinish = () => {
+    el.remove();
+    if (to.el) { to.el.classList.remove('got'); void to.el.offsetWidth; to.el.classList.add('got'); }
+  };
+}
+
+function animateTrade(t) {
+  FX.sound(t.kind === 'bank' ? 'coins' : 'trade');
+  if (reducedMotion()) return;
+  const bank = t.to === null ? bankAnchor() : null;
+  const send = (bundle, fromPid, toPid, start) => {
+    let i = 0;
+    for (const r of RES) {
+      for (let k = 0; k < Math.min(bundle[r] || 0, 4); k++) {
+        const a = anchorFor(fromPid, r, bank), b = anchorFor(toPid, r, bank);
+        if (a && b) flyIcon(r, a, b, start + i++ * 110);
+      }
+    }
+    return i;
+  };
+  const n = send(t.give, t.from, t.to, 0);
+  send(t.get, t.to, t.from, 380 + Math.max(0, n - 3) * 110);
+  if (t.to !== null) {
+    // 🤝 medzi obchodníkmi
+    const a = anchorFor(t.from, RES[0]), b = anchorFor(t.to, RES[0]);
+    if (a && b) {
+      const h = document.createElement('div');
+      h.className = 'handshake';
+      h.textContent = t.kind === 'port' ? '⚓🤝' : '🤝';
+      h.style.left = (a.x + b.x) / 2 + 'px';
+      h.style.top = (a.y + b.y) / 2 + 'px';
+      document.body.appendChild(h);
+      setTimeout(() => h.remove(), 1600);
+    }
+  }
 }
 
 function renderActions() {

@@ -664,6 +664,7 @@ class Game {
     const rate = this.bankRate(p, give);
     this.pay(p, { [give]: rate });
     this.gain(p, get);
+    this.recordTrade('bank', p.id, null, { [give]: rate }, { [get]: 1 });
     this.addLog(`${p.name} mení s bankou ${rate}× ${RES_NAMES[give]} za 1× ${RES_NAMES[get]}.`);
   }
 
@@ -721,7 +722,15 @@ class Game {
     this.pay(p, o.want);
     for (const r of RES) { from.res[r] += o.want[r]; p.res[r] += o.give[r]; }
     this.portOffers = this.portOffers.filter(x => x !== o);
+    this.recordTrade('port', from.id, p.id, o.give, o.want);
     this.addLog(`⚓ ${p.name} prijíma námorný obchod od ${from.name}.`);
+  }
+
+  // Posledný obchod pre animácie klienta: „from“ dal „give“ hráčovi „to“ (null = banka) a dostal „get“
+  recordTrade(kind, from, to, give, get) {
+    this.tradeSeq = (this.tradeSeq || 0) + 1;
+    const clean = b => Object.fromEntries(RES.filter(r => b[r]).map(r => [r, b[r]]));
+    this.lastTrade = { n: this.tradeSeq, kind, from, to, give: clean(give), get: clean(get) };
   }
 
   portCancel(p, id) {
@@ -741,6 +750,7 @@ class Game {
     this.pay(p, o.want);
     for (const r of RES) { from.res[r] += o.want[r]; p.res[r] += o.give[r]; }
     this.offer = null;
+    this.recordTrade('offer', from.id, p.id, o.give, o.want);
     this.addLog(`🤝 ${p.name} prijíma obchod od ${from.name}.`);
   }
 
@@ -928,6 +938,7 @@ class Game {
       chased: !!this.chased,
       lastEvent: this.lastEvent,
       lastRoll: this.lastRoll || null,
+      lastTrade: this.lastTrade || null,
       bandits: this.bandits || null,
       portOffers: this.portOffers || [],
       cardsLeft: (this.cardDeck || []).length,
