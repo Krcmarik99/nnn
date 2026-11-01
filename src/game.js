@@ -909,6 +909,30 @@ class Game {
   }
 
   // Pre odpojeného hráča: ostatní môžu jeho ťah preskočiť
+  // Hráč odíde z rozohranej hry – jeho miesto prevezme AI hráč
+  replaceWithBot(pid) {
+    const p = this.player(pid);
+    if (!p || p.bot) return;
+    p.bot = true;
+    p.level = 'normal';
+    const name = p.name;
+    p.name = ('🤖 ' + name).slice(0, 22);
+    if (this.offer && this.offer.from === pid) this.offer = null;
+    this.addLog(`🚪 ${name} odišiel(a) z hry – miesto preberá AI hráč.`);
+  }
+
+  // Zakladateľ ukončí rozohranú hru – vyhráva hráč s najviac bodmi
+  abort(byName) {
+    if (this.phase !== 'setup' && this.phase !== 'play') throw new GameError('Hra neprebieha.');
+    const ranked = [...this.players].sort((a, b) => this.vp(b) - this.vp(a));
+    this.phase = 'ended';
+    this.aborted = true;
+    this.winner = ranked[0].id;
+    this.offer = null;
+    this.pendingBandits = false;
+    this.addLog(`⏹ ${byName || 'Zakladateľ'} ukončil(a) hru. Najviac bodov má ${ranked[0].name} (${this.vp(ranked[0])}).`);
+  }
+
   forceSkip() {
     const p = this.current();
     if (!p) throw new GameError('Hra neprebieha.');
@@ -987,6 +1011,7 @@ class Game {
       cardCost: CARD_COST,
       pendingBandits: !!this.pendingBandits,
       winner: this.winner,
+      aborted: !!this.aborted,
       bankRate: me ? this.bankRate(me) : 4,
       bankRates: me ? this.bankRates(me) : null,
       contracts: this.openContracts.map(id => CONTRACTS.find(c => c.id === id)),

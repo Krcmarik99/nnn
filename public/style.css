@@ -456,3 +456,18 @@ svg .anim.gbadge { animation-delay: calc(var(--t, 0ms) + 1150ms); }
 .appbox[hidden], .appbox [hidden] { display: none !important; }
 .btnlink { display: block; text-align: center; padding: 10px 14px; border-radius: 8px; text-decoration: none; font-weight: 700;
   color: #1a1a1a; background: linear-gradient(180deg, #7ee2a8, #3bb273); box-shadow: inset 0 1px 0 #ffffff55, 0 2px 4px #0004; }
+
+/* menu hry a potvrdzovacie okno */
+.menu-btn { right: 50px; }
+.gmenu { position: absolute; top: 46px; right: 6px; z-index: 12; display: flex; flex-direction: column; gap: 6px; padding: 10px;
+  min-width: 230px; border-radius: 12px; background: linear-gradient(180deg, #1f3858, #152842); border: 1px solid #3a5b80; box-shadow: 0 12px 30px #000a; }
+.gmenu[hidden] { display: none; }
+.gmenu button { text-align: left; }
+.cbox { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: #050b14b8; animation: vIn .2s ease-out both; }
+.cbox-card { width: min(360px, 100%); padding: 18px; border-radius: 16px; background: linear-gradient(180deg, #1f3858, #12223a);
+  border: 1px solid #3a5b80; box-shadow: 0 20px 50px #000c; }
+.cbox-card h3 { color: var(--text); font-size: 1.05rem; text-transform: none; letter-spacing: .02em; }
+.cbox-card p { color: var(--muted); line-height: 1.45; margin: 6px 0 14px; }
+.cbox-card .row > button { flex: 1; }
+button.danger { background: linear-gradient(180deg, #ff7a66, #d9432f); border-color: #ff7a66; color: #fff; font-weight: 700; }
