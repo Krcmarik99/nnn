@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Súostrovie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Nunito:wght@400;600;700;800&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,8 +15,9 @@
 <!-- Úvod -->
 <section id="home" class="screen">
   <div class="card narrow">
-    <h1>🏝️ Súostrovie</h1>
-    <p class="muted">Objavuj ostrovy, obchoduj s kamarátmi a stavaj. 2–5 hráčov.</p>
+    <svg id="hero" class="hero" viewBox="-150 -110 300 220" aria-hidden="true"></svg>
+    <h1 class="title">Súostrovie</h1>
+    <p class="muted subtitle">Objavuj ostrovy, obchoduj s kamarátmi a stavaj. 2–5 hráčov.</p>
     <label>Tvoje meno <input id="name" maxlength="20" placeholder="napr. Tadeáš"></label>
     <button id="btnCreate" class="primary">Vytvoriť párty</button>
     <div class="or">alebo</div>
@@ -87,6 +91,7 @@
 </section>
 
 <script src="fx.js"></script>
+<script src="textures.js"></script>
 <script src="client.js"></script>
 </body>
 </html>
