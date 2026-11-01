@@ -775,6 +775,8 @@ class Game {
     this.pay(p, CARD_COST);
     this.cardSeq = (this.cardSeq || 0) + 1;
     (p.devCards ||= []).push({ id: 'k' + this.cardSeq, type: this.cardDeck.pop(), turnNo: this.turnNo || 0 });
+    this.cardSeqPub = (this.cardSeqPub || 0) + 1;
+    this.lastCardBuy = { n: this.cardSeqPub, by: p.id };
     this.addLog(`🎴 ${p.name} kupuje rozvojovú kartu.`);
   }
 
@@ -784,6 +786,7 @@ class Game {
     if (card.turnNo === (this.turnNo || 0)) throw new GameError('Kartu nemôžeš zahrať v ťahu, keď si ju kúpil(a).');
     if (this.cardPlayed) throw new GameError('V jednom ťahu môžeš zahrať len jednu rozvojovú kartu.');
     const def = CARDS.find(c => c.id === card.type);
+    const steals = {};
     const label = `${def.icon} ${p.name} hrá kartu ${def.name}`;
     switch (def.id) {
       case 'mapa': {
@@ -833,6 +836,7 @@ class Game {
         for (const o of this.players) {
           if (o === p || this.cards(o) < 5) continue;
           const lost = this.loseRandom(o, 1);
+          steals[o.id] = Object.fromEntries(RES.filter(r => lost[r]).map(r => [r, lost[r]]));
           for (const r of RES) { p.res[r] += lost[r]; got[r] += lost[r]; }
         }
         this.addLog(`${label} a získava ${fmtRes(got)}.`);
@@ -852,6 +856,8 @@ class Game {
       }
     }
     p.devCards = p.devCards.filter(c => c !== card);
+    this.cardSeqPub = (this.cardSeqPub || 0) + 1;
+    this.lastCard = { n: this.cardSeqPub, type: def.id, by: p.id, hex: hexKey || null, steals };
     this.cardPlayed = true;
     this.checkWin();
   }
@@ -939,6 +945,8 @@ class Game {
       lastEvent: this.lastEvent,
       lastRoll: this.lastRoll || null,
       lastTrade: this.lastTrade || null,
+      lastCard: this.lastCard || null,
+      lastCardBuy: this.lastCardBuy || null,
       bandits: this.bandits || null,
       portOffers: this.portOffers || [],
       cardsLeft: (this.cardDeck || []).length,

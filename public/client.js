@@ -158,6 +158,12 @@ function applyState(next, prev, afterRoll) {
   const lt = S.lastTrade;
   if (!prev || lastTradeN === null) lastTradeN = lt ? lt.n : 0;
   else if (lt && lt.n !== lastTradeN) { lastTradeN = lt.n; animateTrade(lt); }
+  const lc = S.lastCard, lb = S.lastCardBuy;
+  if (!prev || lastCardN === null) { lastCardN = lc ? lc.n : 0; lastBuyN = lb ? lb.n : 0; }
+  else {
+    if (lb && lb.n !== lastBuyN) { lastBuyN = lb.n; animateCardBuy(lb); }
+    if (lc && lc.n !== lastCardN) { lastCardN = lc.n; animateCardPlay(lc); }
+  }
   if (!prev || prev.phase === 'lobby' && S.phase === 'lobby') return;
   const cards = st => { const p = st.players.find(x => x.id === st.me); return p ? p.cards : 0; };
   const sum = (st, f) => st.players.reduce((a, p) => a + (p[f] || 0), 0);
@@ -536,7 +542,7 @@ function trackBuildAnims() {
   const now = performance.now();
   const snap = {};
   for (const h of S.hexes) {
-    snap[h.k] = { b: h.building ? h.building.type : '', L: !!h.lighthouse, P: !!h.port };
+    snap[h.k] = { b: h.building ? h.building.type : '', L: !!h.lighthouse, P: !!h.port, R: !!h.revealed };
   }
   if (boardSnap) {
     for (const h of S.hexes) {
@@ -546,6 +552,7 @@ function trackBuildAnims() {
       else if (cur.b === 'town' && prev.b === 'camp') anims[h.k + ':b'] = { kind: 'up', t0: now };
       if (cur.L && !prev.L) anims[h.k + ':L'] = { kind: 'lh', t0: now };
       if (cur.P && !prev.P) anims[h.k + ':P'] = { kind: 'port', t0: now };
+      if (cur.R && prev.R === false) anims[h.k + ':r'] = { kind: 'reveal', t0: now };
     }
   }
   boardSnap = snap;
@@ -675,7 +682,13 @@ function renderBoard() {
         <circle cx="${x}" cy="${y + 2}" r="11" fill="none" stroke="${hot ? '#fff6' : '#8b6f4755'}" stroke-width="1"/>
         <text x="${x}" y="${y + 8}" text-anchor="middle" font-size="17" font-weight="800" fill="#2b2118" font-family="Georgia, serif">${h.num}</text></g>`;
     }
-    const tileG = `<g class="hex${valid.has(h.k) ? ' valid' : ''}" data-k="${h.k}">${inner}</g>`;
+    const ra = animOf(h.k + ':r');
+    const tileG = `<g class="hex${valid.has(h.k) ? ' valid' : ''}${ra ? ' anim t-reveal' : ''}" data-k="${h.k}"${ra ? ` style="${ra.style}"` : ''}>${inner}</g>`;
+    if (ra) {
+      fxLayer += `<g class="anim" style="${ra.style}"><use class="fog-out" href="#t-hmla" transform="translate(${x},${y})"/>
+        <circle class="ring" cx="${x}" cy="${y}" r="30" fill="none" stroke="#ffd166" stroke-width="3"/>
+        ${Array.from({ length: 8 }, (_, i) => { const a = i / 8 * Math.PI * 2; return `<path class="spark" d="M${x},${y} l0,-5" stroke="#fff3b0" stroke-width="2" stroke-linecap="round" style="--dx:${(Math.cos(a) * 40).toFixed(1)}px;--dy:${(Math.sin(a) * 34).toFixed(1)}px"/>`; }).join('')}</g>`;
+    }
     if (h.revealed && h.terrain !== 'more') {
       tiles += tileG;
       shore += `<polygon points="${hexPts(x, y, R + 10)}" fill="#e0f2ff" fill-opacity=".16"/>`;
@@ -837,6 +850,152 @@ function flyIcon(r, from, to, delay) {
     el.remove();
     if (to.el) { to.el.classList.remove('got'); void to.el.offsetWidth; to.el.classList.add('got'); }
   };
+}
+
+// ---------- animácie rozvojových kariet ----------
+let lastCardN = null, lastBuyN = null;
+
+function hexScreen(k) {
+  const svg = $('board');
+  const h = (S.hexes || []).find(x => x.k === k);
+  if (!svg || !h || !svg.getScreenCTM()) return null;
+  const W = Math.sqrt(3) * HEX_R;
+  const pt = svg.createSVGPoint();
+  pt.x = W * (h.q + h.r / 2); pt.y = 1.5 * HEX_R * h.r;
+  const p = pt.matrixTransform(svg.getScreenCTM());
+  return { x: p.x, y: p.y };
+}
+
+function floatText(pt, text, color = '#ffd166', delay = 0) {
+  if (!pt) return;
+  const el = document.createElement('div');
+  el.className = 'floattext';
+  el.textContent = text;
+  el.style.left = pt.x + 'px'; el.style.top = pt.y + 'px'; el.style.color = color;
+  el.style.animationDelay = delay + 'ms';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1900 + delay);
+}
+
+function burst(pt, glyph, n = 8, delay = 0, spread = 60, up = false) {
+  if (!pt) return;
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement('div');
+    el.className = 'particle';
+    el.textContent = glyph;
+    el.style.left = pt.x + 'px'; el.style.top = pt.y + 'px';
+    document.body.appendChild(el);
+    const a = up ? -Math.PI / 2 + (Math.random() - 0.5) * 1.4 : (i / n) * Math.PI * 2;
+    const d = spread * (0.6 + Math.random() * 0.6);
+    const an = el.animate([
+      { transform: 'translate(-50%,-50%) scale(.3)', opacity: 0 },
+      { opacity: 1, offset: 0.2 },
+      { transform: `translate(calc(-50% + ${Math.cos(a) * d}px), calc(-50% + ${Math.sin(a) * d - (up ? 20 : 0)}px)) scale(1) rotate(${(Math.random() - 0.5) * 120}deg)`, opacity: 0 },
+    ], { duration: 1100 + Math.random() * 400, delay: delay + i * 40, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'backwards' });
+    an.onfinish = () => el.remove();
+  }
+}
+
+function playerPoint(pid) {
+  if (pid === S.me) {
+    const c = document.querySelector('#cardsPanel h3') || document.querySelector('#myPanel');
+    if (c) return centerOf(c);
+  }
+  const a = anchorFor(pid, RES[0]);
+  return a ? { x: a.x, y: a.y } : null;
+}
+
+function animateCardBuy(lb) {
+  if (reducedMotion()) return;
+  const area = document.querySelector('.boardArea');
+  const to = playerPoint(lb.by);
+  if (!area || !to) return;
+  const from = centerOf(area);
+  const el = document.createElement('div');
+  el.className = 'minicard';
+  el.style.left = from.x + 'px'; el.style.top = from.y + 'px';
+  document.body.appendChild(el);
+  const an = el.animate([
+    { transform: 'translate(-50%,-50%) scale(.2) rotate(-20deg)', opacity: 0 },
+    { transform: 'translate(-50%,-50%) scale(1.2) rotate(0deg)', opacity: 1, offset: 0.3 },
+    { transform: `translate(calc(-50% + ${to.x - from.x}px), calc(-50% + ${to.y - from.y}px)) scale(.4) rotate(14deg)`, opacity: 0.9 },
+  ], { duration: 1100, easing: 'cubic-bezier(.45,0,.25,1)' });
+  an.onfinish = () => el.remove();
+}
+
+function animateCardPlay(lc) {
+  const d = cardDef(lc.type);
+  const who = pl(lc.by) || { name: '?', color: '#fff' };
+  const area = document.querySelector('.boardArea');
+  if (!area) return;
+  document.querySelectorAll('.cardshow').forEach(e => e.remove());
+  const box = document.createElement('div');
+  box.className = 'cardshow';
+  box.innerHTML = `<div class="card3d">
+      <div class="face back"><div class="emblem">🎴</div></div>
+      <div class="face front">
+        <div class="cicon">${d.icon}</div>
+        <div class="cname">${esc(d.name)}</div>
+        <div class="ctext">${esc(d.text)}</div>
+        <div class="cby" style="--c:${who.color}">${lc.by === S.me ? 'Hráš ty' : 'Hrá ' + esc(who.name)}</div>
+      </div></div>`;
+  area.appendChild(box);
+  const reduced = reducedMotion();
+  // efekty po otočení karty
+  setTimeout(() => cardEffect(lc), reduced ? 0 : 750);
+  // karta odletí k hráčovi
+  setTimeout(() => {
+    const to = playerPoint(lc.by);
+    const card = box.querySelector('.card3d');
+    if (reduced || !to || !card) { box.remove(); return; }
+    const from = centerOf(card);
+    const an = card.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${to.x - from.x}px, ${to.y - from.y}px) scale(.15) rotate(18deg)`, opacity: 0 },
+    ], { duration: 650, easing: 'cubic-bezier(.5,0,.75,0)', fill: 'forwards' });
+    an.onfinish = () => box.remove();
+  }, reduced ? 1600 : 2300);
+  box.onclick = () => box.remove();
+}
+
+function cardEffect(lc) {
+  if (reducedMotion()) return;
+  const at = playerPoint(lc.by);
+  switch (lc.type) {
+    case 'uroda':
+      for (const h of S.hexes) {
+        if (!h.building || h.building.owner !== lc.by || h.k === S.bandits) continue;
+        const p = hexScreen(h.k);
+        burst(p, '🍃', 4, 0, 40, true);
+        burst(p, '✨', 3, 150, 34, true);
+      }
+      break;
+    case 'pasaci':
+      for (const vid in lc.steals || {}) {
+        let i = 0;
+        for (const r in lc.steals[vid]) {
+          const a = anchorFor(vid, r), b = anchorFor(lc.by, r);
+          if (a && b) flyIcon(r, a, b, i++ * 120);
+        }
+      }
+      burst(at, '🏴‍☠️', 1, 0, 1);
+      break;
+    case 'kupec':
+      burst(at, '🪙', 10, 0, 70);
+      floatText(at, '2:1', '#ffd166', 100);
+      break;
+    case 'listina':
+      burst(at, '✨', 10, 0, 60);
+      floatText(at, '+1 bod', '#ffd166', 100);
+      break;
+    case 'kompas':
+      burst(at, '✨', 6, 0, 50);
+      floatText(at, '+1 🧭', '#9fd1ff', 100);
+      break;
+    case 'mapa':
+      if (lc.hex) burst(hexScreen(lc.hex), '✨', 10, 200, 70);
+      break;
+  }
 }
 
 function animateTrade(t) {
