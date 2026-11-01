@@ -29,6 +29,10 @@ const ARMY_MIN = 3;    // najväčšie vojsko: aspoň 3 vojaci
 const ARMY_VP = 2;
 const PIRATE_GUARD = 2; // toľko vojakov ochráni pred pirátmi
 const BANDIT_SUM = 7;
+// Čísla polí = súčet dvoch kociek (2–12, bez 7 – tá patrí banditom).
+// Častejšie súčty sú na viacerých poliach (26 polí pevniny).
+const NUMBER_POOL = [2, 12, 3, 3, 11, 11, 4, 4, 4, 10, 10, 10, 5, 5, 5, 9, 9, 9, 6, 6, 6, 6, 8, 8, 8, 8];
+const ROLL_YIELD = { camp: 1, town: 2 };   // výnos pri hode: tábor 1, mesto 2
 const TERRAIN_NAMES = { les: 'Les', lom: 'Lom', bana: 'Baňa', pole: 'Pole', solnisko: 'Soľnisko', more: 'More' };
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 
@@ -120,13 +124,9 @@ function generateMap(rng) {
 
   const innerTerr = shuffle([...LAND, ...LAND, ...LAND, 'pole'], rng);
   const outerTerr = shuffle([...LAND, ...LAND], rng);
-  const nums = n => {
-    const base = [];
-    while (base.length < n) for (let i = 1; i <= 6 && base.length < n; i++) base.push(i);
-    return shuffle(base, rng);
-  };
-  const innerNums = nums(16);
-  const outerNums = nums(10);
+  const pool = shuffle(NUMBER_POOL.slice(), rng);
+  const innerNums = pool.slice(0, 16);
+  const outerNums = pool.slice(16);
 
   for (const h of inner) {
     const k = key(h.q, h.r);
@@ -188,6 +188,7 @@ class Game {
     if (t >= 8 && t <= 20) this.target = Math.floor(t);
     shuffle(this.players, this.rng);
     this.hexes = generateMap(this.rng);
+    this.numbersV2 = true;
     const n = this.players.length;
     this.setupOrder = [...Array(n).keys(), ...[...Array(n).keys()].reverse()];
     this.setupIndex = 0;
@@ -228,6 +229,15 @@ class Game {
   static restore(data, opts = {}) {
     const g = new Game(opts);
     Object.assign(g, data);
+    // hry uložené pred zmenou na súčet dvoch kociek mali na poliach čísla 1–6
+    if (g.hexes && !g.numbersV2) {
+      const land = Object.values(g.hexes).filter(h => h.terrain !== 'more' && h.num != null);
+      if (land.length && land.every(h => h.num <= 6)) {
+        const pool = shuffle(NUMBER_POOL.slice(), g.rng);
+        land.forEach((h, i) => { h.num = pool[i % pool.length]; });
+      }
+      g.numbersV2 = true;
+    }
     return g;
   }
 
@@ -500,14 +510,15 @@ class Game {
 
   roll(p) {
     if (this.rolled) throw new GameError('Už si hádzal(a).');
-    const prod = 1 + Math.floor(this.rng() * 6);
+    const d1 = 1 + Math.floor(this.rng() * 6);
     const ev = 1 + Math.floor(this.rng() * 6);
-    this.dice = [prod, ev];
+    const prod = d1 + ev; // produkujú polia so súčtom oboch kociek
+    this.dice = [d1, ev];
     this.rollCount = (this.rollCount || 0) + 1;
-    this.lastRoll = { n: this.rollCount, by: p.id, dice: [prod, ev] };
+    this.lastRoll = { n: this.rollCount, by: p.id, dice: [d1, ev] };
     this.rolled = true;
     this.lastEvent = null;
-    this.addLog(`${p.name} hádže: produkcia ${prod}, udalosť ${ev}.`);
+    this.addLog(`${p.name} hádže ${d1} + ${ev} = ${prod}.`);
 
     const gains = {};
     for (const k in this.hexes) {
@@ -518,7 +529,7 @@ class Game {
         continue;
       }
       const owner = this.player(h.building.owner);
-      const n = h.building.type === 'town' ? 2 : 1;
+      const n = ROLL_YIELD[h.building.type];
       const r = TERRAIN_RES[h.terrain];
       this.gain(owner, r, n);
       (gains[owner.id] ||= emptyRes())[r] += n;
@@ -532,7 +543,7 @@ class Game {
     } else if (ev === 1) {
       this.drawEvent(p);
     }
-    if (prod + ev === BANDIT_SUM) {
+    if (prod === BANDIT_SUM) {
       this.pendingBandits = true;
       this.addLog(`🦹 Súčet ${BANDIT_SUM}! ${p.name} môže presunúť banditov.`);
     }
@@ -973,4 +984,4 @@ class Game {
   }
 }
 
-module.exports = { Game, GameError, RES, COSTS, LIMITS, CONTRACTS, EVENTS, TERRAIN_RES, MAX_PLAYERS, STORM_LIMIT, BANDIT_SUM, ROAD_MIN, ARMY_MIN, SOLDIER_COST, SOLDIER_MAX, CARDS, CARD_COST, generateMap, key };
+module.exports = { Game, GameError, RES, COSTS, LIMITS, CONTRACTS, EVENTS, TERRAIN_RES, MAX_PLAYERS, STORM_LIMIT, BANDIT_SUM, NUMBER_POOL, ROAD_MIN, ARMY_MIN, SOLDIER_COST, SOLDIER_MAX, CARDS, CARD_COST, generateMap, key };

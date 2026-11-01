@@ -63,6 +63,9 @@ function spotScore(g, p, h) {
   let s = 1;
   if (!ownRes.has(TERRAIN_RES[h.terrain])) s += 2;
   if (!ownNums.has(h.num)) s += 1;
+  // pravdepodobnosť čísla pri súčte dvoch kociek (počet kombinácií 1–5)
+  const ways = h.num ? 6 - Math.abs(7 - h.num) : 0;
+  s += ways * (lv(p).valueAware ? 0.55 : lv(p).randomBuild ? 0 : 0.35);
   s += ns.filter(n => n.revealed && g.isLand(n) && !n.building).length * 0.35;
   s += ns.filter(n => !n.revealed).length * 0.25;
   if (g.isCoastal(h)) s += 0.2;

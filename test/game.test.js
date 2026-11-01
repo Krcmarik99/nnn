@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { Game, GameError, generateMap, RES, TERRAIN_RES } = require('../src/game');
+const { Game, GameError, generateMap, RES, TERRAIN_RES, NUMBER_POOL } = require('../src/game');
 
 function seeded(seed = 42) {
   return () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
@@ -24,14 +24,15 @@ function setupGame(n = 3) {
   return { g, ids };
 }
 
-test('mapa má 37 políčok, 19 odkrytých a 26 pevnín s číslami 1–6', () => {
+test('mapa má 37 políčok, 19 odkrytých a 26 pevnín s číslami 2–12 (bez 7)', () => {
   const m = generateMap(seeded(7));
   const hs = Object.values(m);
   assert.strictEqual(hs.length, 37);
   assert.strictEqual(hs.filter(h => h.revealed).length, 19);
   const land = hs.filter(h => h.terrain !== 'more');
   assert.strictEqual(land.length, 26);
-  assert.ok(land.every(h => h.num >= 1 && h.num <= 6));
+  assert.ok(land.every(h => h.num >= 2 && h.num <= 12 && h.num !== 7));
+  assert.deepStrictEqual(land.map(h => h.num).sort((a, b) => a - b), NUMBER_POOL.slice().sort((a, b) => a - b));
 });
 
 test('lobby: max 5 hráčov a min 2 na štart', () => {
@@ -188,7 +189,8 @@ test('banditi: začínajú v horách, súčet 7 ich dovolí presunúť a blokuj�
   const num = g.hexes[target].num;
   const before = g.cards(other);
   const othersSameNum = Object.keys(g.hexes).filter(k => k !== target && g.hexes[k].building && g.hexes[k].building.owner === other.id && g.hexes[k].num === num);
-  g.rng = (() => { const q = [(num - 1) / 6 + 0.01, 1 / 6 + 0.01]; return () => (q.length ? q.shift() : orig()); })();
+  const d1 = Math.min(6, num - 1), d2 = num - d1; // súčet kociek = číslo poľa s banditmi
+  g.rng = (() => { const q = [(d1 - 1) / 6 + 0.01, (d2 - 1) / 6 + 0.01]; return () => (q.length ? q.shift() : orig()); })();
   g.act(g.current().id, { type: 'roll' });
   const expected = before + othersSameNum.reduce((a, k) => a + (g.hexes[k].building.type === 'town' ? 2 : 1), 0);
   assert.strictEqual(g.cards(other), expected);
@@ -430,4 +432,31 @@ test('zahraná a kúpená karta sa zaznamená pre animácie', () => {
   assert.ok(g.lastCard.n > g.lastCardBuy.n);
   // typ kúpenej karty sa v pohľade neprezradí
   assert.strictEqual(g.view(others[0].id).lastCardBuy.type, undefined);
+});
+
+test('produkcia podľa súčtu dvoch kociek', () => {
+  const { g } = setupGame(2);
+  const p = g.current();
+  const k = Object.keys(g.hexes).find(x => g.hexes[x].building && g.hexes[x].building.owner === p.id && x !== g.bandits);
+  const num = g.hexes[k].num;
+  const d1 = Math.min(6, num - 1), d2 = num - d1;
+  const orig = g.rng;
+  const q = [(d1 - 1) / 6 + 0.01, (d2 - 1) / 6 + 0.01];
+  g.rng = () => (q.length ? q.shift() : orig());
+  const before = g.cards(p);
+  g.act(p.id, { type: 'roll' });
+  assert.deepStrictEqual(g.dice, [d1, d2]);
+  assert.ok(g.cards(p) >= before + 1, 'pole so súčtom kociek vyprodukovalo');
+  assert.ok(g.log.some(l => l.includes(`${d1} + ${d2} = ${num}`)));
+});
+
+test('obnova starej hry prečísluje polia 1–6 na 2–12', () => {
+  const g = new Game();
+  g.addPlayer('A'); g.addPlayer('B'); g.start(12);
+  const data = JSON.parse(JSON.stringify(g.serialize()));
+  delete data.numbersV2;
+  Object.values(data.hexes).forEach(h => { if (h.num != null) h.num = 1 + (h.q + 10) % 6; });
+  const r = Game.restore(data);
+  const nums = Object.values(r.hexes).filter(h => h.num != null).map(h => h.num);
+  assert.ok(nums.every(n => n >= 2 && n <= 12 && n !== 7));
 });
