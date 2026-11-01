@@ -379,6 +379,7 @@ svg .anim, svg .anim * { animation-delay: var(--t, 0ms); }
 .boardArea.shake { animation: shakeBoard .6s ease-in-out; }
 @keyframes shakeBoard { 0%, 100% { translate: 0 0; } 15% { translate: -8px 2px; } 30% { translate: 7px -3px; } 45% { translate: -6px 3px; } 60% { translate: 5px -2px; } 75% { translate: -3px 1px; } }
 @media (prefers-reduced-motion: reduce) {
+  .plank, .b-hub,
   .bandit.leap, .bandit.wait, .smoke, .swords, .blockring, .blockno, .blockres, .banditAlarm, .boardArea.shake { animation: none !important; }
   .smoke, .swords, .blockres { display: none; }
 }
@@ -430,9 +431,11 @@ svg .anim, svg .anim * { animation-delay: var(--t, 0ms); }
 }
 
 /* most: natiahne sa od brehu, na ktorý nadväzuje (+x po otočení) */
-.b-bridge { animation: bBridge .9s .15s cubic-bezier(.3,1.1,.4,1) backwards; transform-box: fill-box; transform-origin: 0% 50%; }
-.b-hub { animation: bHub .5s cubic-bezier(.3,1.6,.5,1) backwards; transform-box: fill-box; transform-origin: 50% 50%; }
-@keyframes bHub { from { scale: 0; opacity: 0; } to { scale: 1; opacity: 1; } }
+.b-hub { animation: bHub .55s cubic-bezier(.3,1.5,.5,1) backwards; transform-box: fill-box; transform-origin: 50% 50%; }
+@keyframes bHub { 0% { scale: .2; opacity: 0; filter: brightness(.4) blur(1px); } 60% { scale: 1.12; opacity: 1; filter: brightness(1.15); } 100% { scale: 1; filter: none; } }
 svg .anim.b-hub { animation-delay: var(--t, 0ms); }
-@keyframes bBridge { 0% { scale: 0 1; opacity: .4; } 70% { scale: 1.03 1; opacity: 1; } 100% { scale: 1 1; } }
-svg .anim.b-bridge { animation-delay: calc(var(--t, 0ms) + 150ms); }
+/* dosky sa kladú jedna za druhou: zhora (zväčšené) dosadnú na miesto */
+.plank { animation: plankDrop .34s cubic-bezier(.3,1.5,.55,1) backwards; transform-box: fill-box; transform-origin: 50% 50%; }
+@keyframes plankDrop { 0% { scale: 1.6; opacity: 0; filter: drop-shadow(3px 6px 3px #0008); } 60% { opacity: 1; scale: .94; } 100% { scale: 1; filter: none; } }
+svg .anim.plank { animation-delay: calc(var(--t, 0ms) + 380ms + var(--i) * 85ms); }
+

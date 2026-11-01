@@ -74,6 +74,16 @@ const FX = (() => {
       tone(90, t, 0.4, { type: 'sine', vol: 0.15, to: 45 });
       for (let i = 0; i < 9; i++) noise(t + 0.25 + Math.random() * 0.6, 0.03, { vol: 0.12, freq: 4000 + Math.random() * 3000, q: 3 });
     },
+    // búchanie kladivom pri stavbe mosta (zosynchronizované s doskami)
+    hammer(t) {
+      noise(t + 0.05, 0.25, { vol: 0.3, freq: 500, kind: 'lowpass', q: 0.6 }); // šplech piliera
+      for (let i = 0; i < 8; i++) {
+        const tt = t + 0.56 + i * 0.085;
+        tone(420 + (i % 2) * 60, tt, 0.05, { type: 'square', vol: 0.05 });
+        noise(tt, 0.04, { vol: 0.22, freq: 1800, q: 1.2 });
+        tone(160, tt, 0.07, { type: 'triangle', vol: 0.18 });
+      }
+    },
     tap(t) { knock(t, 240 + Math.random() * 60, 0.18); },
     gain(t) {
       tone(880, t, 0.14, { vol: 0.12 });
