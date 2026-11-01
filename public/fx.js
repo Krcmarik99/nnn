@@ -101,6 +101,11 @@ const FX = (() => {
       noise(t, 0.12, { vol: 0.25, freq: 3000, q: 0.7 });
       tone(700, t + 0.08, 0.12, { type: 'triangle', vol: 0.1, to: 1100 });
     },
+    block(t) {
+      tone(140, t, 0.18, { type: 'square', vol: 0.06 });
+      tone(110, t + 0.16, 0.26, { type: 'square', vol: 0.06 });
+      noise(t + 0.05, 0.3, { vol: 0.25, freq: 400, kind: 'lowpass', q: 0.7 });
+    },
     coins(t) {
       [0, 0.07, 0.15, 0.24].forEach((d, i) => { tone(2400 + i * 180, t + d, 0.09, { type: 'triangle', vol: 0.07 }); tone(3600 + i * 240, t + d + 0.01, 0.06, { vol: 0.04 }); });
       tone(1500, t + 0.42, 0.25, { type: 'triangle', vol: 0.08 });
