@@ -411,3 +411,23 @@ test('posledný obchod sa zaznamená pre animácie (banka aj hráči)', () => {
   assert.deepStrictEqual(g.lastTrade, { n: 2, kind: 'offer', from: a.id, to: b.id, give: { drevo: 2 }, get: { kamen: 1 } });
   assert.strictEqual(g.view(b.id).lastTrade.n, 2);
 });
+
+test('zahraná a kúpená karta sa zaznamená pre animácie', () => {
+  const { g } = setupGame(3);
+  const p = g.current();
+  roll(g, p);
+  p.res = { drevo: 0, kamen: 0, ruda: 2, obilie: 2, sol: 2 };
+  g.act(p.id, { type: 'buyCard' });
+  assert.strictEqual(g.lastCardBuy.by, p.id);
+  const others = g.players.filter(o => o !== p);
+  others.forEach(o => { o.res = { drevo: 5, kamen: 0, ruda: 0, obilie: 0, sol: 0 }; });
+  p.devCards = [{ id: 'z1', type: 'pasaci', turnNo: -1 }];
+  g.act(p.id, { type: 'playCard', id: 'z1' });
+  assert.strictEqual(g.lastCard.type, 'pasaci');
+  assert.strictEqual(g.lastCard.by, p.id);
+  assert.deepStrictEqual(Object.keys(g.lastCard.steals).sort(), others.map(o => o.id).sort());
+  for (const o of others) assert.deepStrictEqual(g.lastCard.steals[o.id], { drevo: 1 });
+  assert.ok(g.lastCard.n > g.lastCardBuy.n);
+  // typ kúpenej karty sa v pohľade neprezradí
+  assert.strictEqual(g.view(others[0].id).lastCardBuy.type, undefined);
+});
