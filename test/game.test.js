@@ -396,3 +396,18 @@ test('lepší kurz s bankou: prístav dá 2:1 na surovinu svojho poľa', () => {
   assert.strictEqual(p.res[other], 1);
   assert.deepStrictEqual(g.view(p.id).bankRates[r], 2);
 });
+
+test('posledný obchod sa zaznamená pre animácie (banka aj hráči)', () => {
+  const { g } = setupGame(2);
+  const [a, b] = [g.current(), g.players.find(x => x !== g.current())];
+  roll(g, a);
+  g.market = false;
+  a.res = { drevo: 4, kamen: 0, ruda: 0, obilie: 0, sol: 0 };
+  g.act(a.id, { type: 'bankTrade', give: 'drevo', get: 'sol' });
+  assert.deepStrictEqual(g.lastTrade, { n: 1, kind: 'bank', from: a.id, to: null, give: { drevo: 4 }, get: { sol: 1 } });
+  a.res.drevo = 2; b.res = { drevo: 0, kamen: 1, ruda: 0, obilie: 0, sol: 0 };
+  g.act(a.id, { type: 'offer', give: { drevo: 2 }, want: { kamen: 1 } });
+  g.act(b.id, { type: 'acceptOffer' });
+  assert.deepStrictEqual(g.lastTrade, { n: 2, kind: 'offer', from: a.id, to: b.id, give: { drevo: 2 }, get: { kamen: 1 } });
+  assert.strictEqual(g.view(b.id).lastTrade.n, 2);
+});
