@@ -428,3 +428,11 @@ svg .anim, svg .anim * { animation-delay: var(--t, 0ms); }
 @media (prefers-reduced-motion: reduce) {
   .winglow, .victory, .v-rays, .v-card, .v-trophy, .v-title, .v-rank li { animation: none !important; }
 }
+
+/* most: natiahne sa od brehu, na ktorý nadväzuje (+x po otočení) */
+.b-bridge { animation: bBridge .9s .15s cubic-bezier(.3,1.1,.4,1) backwards; transform-box: fill-box; transform-origin: 0% 50%; }
+.b-hub { animation: bHub .5s cubic-bezier(.3,1.6,.5,1) backwards; transform-box: fill-box; transform-origin: 50% 50%; }
+@keyframes bHub { from { scale: 0; opacity: 0; } to { scale: 1; opacity: 1; } }
+svg .anim.b-hub { animation-delay: var(--t, 0ms); }
+@keyframes bBridge { 0% { scale: 0 1; opacity: .4; } 70% { scale: 1.03 1; opacity: 1; } 100% { scale: 1 1; } }
+svg .anim.b-bridge { animation-delay: calc(var(--t, 0ms) + 150ms); }

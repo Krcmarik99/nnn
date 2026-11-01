@@ -460,3 +460,30 @@ test('obnova starej hry prečísluje polia 1–6 na 2–12', () => {
   const nums = Object.values(r.hexes).filter(h => h.num != null).map(h => h.num);
   assert.ok(nums.every(n => n >= 2 && n <= 12 && n !== 7));
 });
+
+test('mosty: stavba na mori vedľa vlastnej stavby, rozšírenie dosahu a cesty', () => {
+  const g = new Game({ rng: seeded(5) });
+  g.addPlayer('A'); g.addPlayer('B');
+  g.start(20);
+  for (const k in g.hexes) Object.assign(g.hexes[k], { building: null, bridge: null, revealed: true });
+  const [a] = g.players;
+  g.phase = 'play'; g.turn = g.players.indexOf(a); g.rolled = true; g.pendingBandits = false;
+  const set = (k, terrain) => { g.hexes[k].terrain = terrain; g.hexes[k].num = terrain === 'more' ? null : 5; };
+  // pevnina (0,0) – more (1,0) – pevnina (2,0)
+  set('0,0', 'les'); set('1,0', 'more'); set('2,0', 'pole'); set('1,-1', 'more'); set('2,-1', 'more'); set('0,1', 'more'); set('1,1', 'more');
+  g.hexes['0,0'].building = { owner: a.id, type: 'camp' };
+  a.res = { drevo: 9, kamen: 9, ruda: 9, obilie: 9, sol: 9 };
+  assert.ok(!g.adjacentToOwn(g.hexes['2,0'], a.id), 'pred mostom (2,0) nie je v dosahu');
+  assert.throws(() => g.act(a.id, { type: 'build', kind: 'bridge', hex: '2,0' }), /morské/);
+  assert.throws(() => g.act(a.id, { type: 'build', kind: 'bridge', hex: '2,-1' }), /nadväzovať/);
+  g.act(a.id, { type: 'build', kind: 'bridge', hex: '1,0' });
+  assert.strictEqual(g.hexes['1,0'].bridge, a.id);
+  assert.strictEqual(g.hexes['1,0'].bridgeDir, 3, 'most smeruje k stavbe na západe');
+  assert.deepStrictEqual([a.res.drevo, a.res.kamen], [7, 8]);
+  assert.ok(g.adjacentToOwn(g.hexes['2,0'], a.id), 'za mostom sa dá stavať');
+  const vp = g.vp(a);
+  g.act(a.id, { type: 'build', kind: 'camp', hex: '2,0' });
+  assert.strictEqual(g.vp(a), vp + 1, 'most sám body nedáva, tábor áno');
+  assert.strictEqual(g.longestPath(a.id).length, 3, 'tábor – most – tábor');
+  assert.throws(() => g.act(a.id, { type: 'build', kind: 'bridge', hex: '1,0' }), /už most/);
+});
