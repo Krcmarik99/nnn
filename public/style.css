@@ -471,3 +471,11 @@ svg .anim.gbadge { animation-delay: calc(var(--t, 0ms) + 1150ms); }
 .cbox-card p { color: var(--muted); line-height: 1.45; margin: 6px 0 14px; }
 .cbox-card .row > button { flex: 1; }
 button.danger { background: linear-gradient(180deg, #ff7a66, #d9432f); border-color: #ff7a66; color: #fff; font-weight: 700; }
+
+/* značky na stavbu cesty */
+.emark { cursor: pointer; }
+.emark circle { fill: #ffe08a; fill-opacity: .9; stroke: #3b2a1a; stroke-width: 1.5; animation: emark 1s ease-in-out infinite alternate; }
+.emark path { stroke: #3b2a1a; stroke-width: 2.2; stroke-linecap: round; pointer-events: none; }
+.emark:hover circle { fill: #fff; }
+@keyframes emark { from { r: 7.5; } to { r: 9.5; } }
+@media (prefers-reduced-motion: reduce) { .emark circle { animation: none; } }

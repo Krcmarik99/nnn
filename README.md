@@ -86,13 +86,17 @@ Ikony a úvodné obrazovky sa generujú z grafiky hry: `node tools/make-icons.js
 ## Pravidlá v skratke
 
 - **Mapa:** 37 šesťuholníkov. Stred je odkrytý, vonkajší okruh je v hmle.
-- **Príprava:** každý položí 2 tábory (poradie tam a späť) a dostane surovinu z každého z nich.
+- **Príprava:** každý položí 2 tábory (poradie tam a späť), ku každému cestu zadarmo, a dostane surovinu z každého tábora.
 - **Ťah:** hoď dvoma klasickými kockami (bielou a fialovou) – čísla sa **sčítajú** (2–12). Stavby na poliach
   so súčtom kociek produkujú (tábor 1, mesto 2). Polia majú čísla 2–12 okrem 7 (častejšie súčty sú na viacerých
   poliach, bodky pod číslom ukazujú pravdepodobnosť). Fialová kocka navyše určuje udalosť:
   1 = karta udalosti, 6 = Trhový deň (výmena s bankou 2:1).
 - **Banditi:** začínajú v horách (na baníckom poli). Keď je súčet oboch kociek 7, hráč na ťahu
   ich môže presunúť na ľubovoľnú odkrytú pevninu alebo nechať na mieste. Pole s banditmi nič neprodukuje.
+- **Cesta** (drevo, kameň): vedie medzi dvoma susednými poliami a nadväzuje na tvoju stavbu, most alebo cestu.
+  Cez pole so súperovou stavbou neprejdeš, medzi dvoma poľami vedie najviac jedna cesta. Max. 15.
+- **Tábor** (obilie, soľ) – lacný, 1 b., len na pole, kam vedie tvoja cesta. **Mesto** (2 ruda, 2 kameň, obilie) –
+  drahé, 2 b., dvojitá produkcia a pripojí si jedno susedné pole (keď padne jeho číslo, dostaneš 1 surovinu).
 - **Stavby** (jedna na políčko): Tábor 1 b., Mesto 2 b., Maják 1 b. (na pobreží, výmena 3:1, ochrana pred pirátmi).
 - **Most** (2 drevo, kameň): stavia sa na odkryté morské pole vedľa vlastnej stavby alebo mosta, max. 4.
   Od mosta môžeš stavať tábory a robiť výpravy na druhom brehu; most je súčasťou cesty (Najdlhšia cesta),
@@ -104,8 +108,8 @@ Ikony a úvodné obrazovky sa generujú z grafiky hry: `node tools/make-icons.js
 - **Vojaci a Najväčšie vojsko** (vojak = ruda + obilie, max. 10): kto má najviac vojakov (aspoň 3),
   získa +2 body; titul prevezme len hráč s väčším vojskom. Aspoň 2 vojaci chránia pred pirátmi.
   S aspoň 1 vojakom môžeš raz za ťah vyhnať banditov zo svojho poľa späť do hôr.
-- **Najdlhšia cesta:** tvoje stavby na susedných poliach tvoria cestu (na mape sú spojené čiarou).
-  Kto má najdlhšiu reťaz stavieb za sebou (aspoň 4), získa +2 body; titul prevezme len hráč s dlhšou cestou.
+- **Najdlhšia cesta:** kto má najviac svojich ciest za sebou (aspoň 5), získa +2 body; súperova stavba cestu
+  preruší; titul prevezme len hráč s dlhšou cestou.
 - **Rozvojové karty** (obilie, ruda, soľ): náhodná karta z balíčka (18 kariet). Hrá sa po hode,
   najskôr v ďalšom ťahu po kúpe, max. jedna za ťah. Ostatní vidia len počet tvojich kariet.
   - 🗺️ **Mapa pokladu** (3×) – odkry ľubovoľné zahalené pole, z pevniny získaš 2 suroviny.

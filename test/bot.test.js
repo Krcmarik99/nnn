@@ -57,11 +57,13 @@ test('bot prijme len výhodnú ponuku', () => {
   bp.res = { drevo: 0, kamen: 0, ruda: 0, obilie: 0, sol: 0 };
   g.act(h, { type: 'offer', give: { sol: 1 }, want: { drevo: 1 } });
   assert.strictEqual(bot.wantsOffer(g, bp), false, 'nemá čo dať');
-  bp.res = { drevo: 0, kamen: 1, ruda: 0, obilie: 1, sol: 5 };
+  // tábor stojí obilie + soľ: bot má soľ, chýba mu obilie
+  bp.res = { drevo: 0, kamen: 0, ruda: 0, obilie: 0, sol: 5 };
+  assert.ok(Object.keys(g.hexes).some(k => g.campAllowed(g.hexes[k], b)), 'bot má kam postaviť tábor');
   g.offer = null;
-  hp.res.drevo = 3;
-  g.act(h, { type: 'offer', give: { drevo: 1 }, want: { sol: 1 } });
-  assert.strictEqual(bot.wantsOffer(g, bp), true, 'drevo mu chýba do tábora');
+  hp.res.obilie = 3;
+  g.act(h, { type: 'offer', give: { obilie: 1 }, want: { sol: 1 } });
+  assert.strictEqual(bot.wantsOffer(g, bp), true, 'obilie mu chýba do tábora');
 });
 
 test('ťažší boti vyhrávajú častejšie', () => {

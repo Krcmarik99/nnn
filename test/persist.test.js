@@ -100,8 +100,19 @@ test('rozohraná hra prežije reštart servera', async () => {
     a.send({ t: 'start', target: 12 });
     let st = (await a.next(m => m.t === 'state' && m.state.phase === 'setup')).state;
     while (st.phase === 'setup') {
-      const free = st.hexes.find(h => h.revealed && h.terrain !== 'more' && !h.building);
-      (st.current === st.me ? a : b).send({ t: 'act', action: { type: 'place', hex: free.k } });
+      const who = st.current === st.me ? a : b;
+      if (st.setupStage === 'road') {
+        // cesta zadarmo od nového tábora k susednej odkrytej pevnine bez cesty
+        const from = st.hexes.find(h => h.k === st.setupFrom);
+        const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+        const taken = new Set(st.roads.map(r => [r.a, r.b].sort().join('|')));
+        const to = DIRS.map(([dq, dr]) => st.hexes.find(h => h.q === from.q + dq && h.r === from.r + dr))
+          .find(h => h && h.revealed && h.terrain !== 'more' && !(h.building && h.building.owner !== st.current) && !taken.has([from.k, h.k].sort().join('|')));
+        who.send({ t: 'act', action: { type: 'road', a: from.k, b: to.k } });
+      } else {
+        const free = st.hexes.find(h => h.revealed && h.terrain !== 'more' && !h.building);
+        who.send({ t: 'act', action: { type: 'place', hex: free.k } });
+      }
       const len = st.log.length;
       st = (await a.next(m => m.t === 'state' && m.state.log.length > len)).state;
     }
