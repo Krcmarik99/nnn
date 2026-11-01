@@ -67,7 +67,10 @@
       <div class="boardArea">
         <svg id="board" viewBox="0 0 100 100"></svg>
         <div id="diceOverlay" hidden>
-          <div class="dice"><div class="die prod"></div><div class="die ev"></div></div>
+          <div class="dice">
+            <div class="dslot"><div class="dthrow"><div class="cube prod"></div></div><div class="dshadow"></div></div>
+            <div class="dslot"><div class="dthrow"><div class="cube ev"></div></div><div class="dshadow"></div></div>
+          </div>
           <div class="cap"></div>
         </div>
       </div>
@@ -92,6 +95,8 @@
 
 <script src="fx.js"></script>
 <script src="textures.js"></script>
+<script src="sprites.js"></script>
+<script src="particles.js"></script>
 <script src="client.js"></script>
 </body>
 </html>
