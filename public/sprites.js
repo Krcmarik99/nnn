@@ -615,6 +615,69 @@ const SPRITES = (() => {
       ctx.fillStyle = '#ffd98a'; ctx.beginPath(); ctx.arc(0, -1.8, 0.9, 0, Math.PI * 2); ctx.fill();
     }
 
+    // ---------- vojak (prilba, kopija, štít vo farbe hráča); počiatok = chodidlá ----------
+    function drawSoldier(ctx, P) {
+      shadow(ctx, 1.5, 0.4, 6.5, 1.8, 0.55);
+      // nohy a čižmy
+      for (const x of [-2.7, 0.6]) {
+        const g = ctx.createLinearGradient(x, 0, x + 2.1, 0);
+        g.addColorStop(0, '#5a4430'); g.addColorStop(1, '#2e2216');
+        ctx.fillStyle = g;
+        ctx.fillRect(x, -8, 2.1, 6.4);
+        ctx.fillStyle = '#1d140c';
+        ctx.fillRect(x - 0.2, -2, 2.6, 2);
+      }
+      // kopija (za telom)
+      ctx.strokeStyle = '#6b4a2a'; ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(5.4, 1); ctx.lineTo(5.4, -25); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(5.4, -29); ctx.lineTo(6.6, -25); ctx.lineTo(4.2, -25); ctx.closePath();
+      let g = ctx.createLinearGradient(4.2, 0, 6.6, 0);
+      g.addColorStop(0, '#f0f3f6'); g.addColorStop(1, '#7c858e');
+      ctx.fillStyle = g; ctx.fill();
+      // krúžková košeľa (rukávy)
+      g = ctx.createLinearGradient(-5.5, 0, 5.5, 0);
+      g.addColorStop(0, '#b8bec4'); g.addColorStop(1, '#5d646b');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.ellipse(-4.4, -13.5, 1.6, 3.4, 0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(4.4, -13.5, 1.6, 3.4, -0.2, 0, Math.PI * 2); ctx.fill();
+      // ruka na kopiji
+      ctx.fillStyle = '#d9a77c';
+      ctx.beginPath(); ctx.arc(5.3, -11, 1, 0, Math.PI * 2); ctx.fill();
+      // tunika vo farbe hráča
+      ctx.beginPath();
+      ctx.moveTo(-3.8, -17.2); ctx.lineTo(3.8, -17.2); ctx.lineTo(4.9, -7.2); ctx.lineTo(-4.9, -7.2); ctx.closePath();
+      g = ctx.createLinearGradient(-5, 0, 5, 0);
+      g.addColorStop(0, css(shade(P, 1.2))); g.addColorStop(0.55, css(P)); g.addColorStop(1, css(shade(P, 0.55)));
+      ctx.fillStyle = g; ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 0.3; ctx.stroke();
+      ctx.strokeStyle = 'rgba(0,0,0,.2)';
+      ctx.beginPath(); ctx.moveTo(0, -16.5); ctx.lineTo(0, -7.5); ctx.stroke();
+      // opasok s prackou
+      ctx.fillStyle = '#3a2614'; ctx.fillRect(-4.5, -10.6, 9, 1.2);
+      ctx.fillStyle = '#e2b84a'; ctx.fillRect(-0.7, -10.7, 1.4, 1.4);
+      // hlava a prilba
+      ctx.fillStyle = '#e0b48a';
+      ctx.beginPath(); ctx.arc(0, -19.4, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(80,40,20,.35)'; ctx.fillRect(-1.6, -18.6, 3.2, 0.5);
+      ctx.beginPath(); ctx.arc(0, -20.2, 2.9, Math.PI, 0); ctx.closePath();
+      g = ctx.createRadialGradient(-1, -22, 0, 0, -20.5, 3.6);
+      g.addColorStop(0, '#f4f6f8'); g.addColorStop(0.5, '#a9b0b7'); g.addColorStop(1, '#4b5258');
+      ctx.fillStyle = g; ctx.fill();
+      ctx.fillStyle = '#5b6168'; ctx.fillRect(-3.1, -20.4, 6.2, 0.8);
+      ctx.fillRect(-0.35, -20.2, 0.7, 2.3);
+      // štít
+      ctx.beginPath(); ctx.arc(-4.4, -12, 4.4, 0, Math.PI * 2);
+      g = ctx.createRadialGradient(-5.6, -13.4, 0.5, -4.4, -12, 4.6);
+      g.addColorStop(0, css(shade(P, 1.3))); g.addColorStop(1, css(shade(P, 0.6)));
+      ctx.fillStyle = g; ctx.fill();
+      ctx.strokeStyle = '#c7ccd1'; ctx.lineWidth = 0.75; ctx.stroke();
+      ctx.strokeStyle = css(shade(P, 1.5), 0.85); ctx.lineWidth = 0.9;
+      ctx.beginPath(); ctx.moveTo(-4.4, -15.4); ctx.lineTo(-4.4, -8.6); ctx.moveTo(-7.8, -12); ctx.lineTo(-1, -12); ctx.stroke();
+      g = ctx.createRadialGradient(-4.8, -12.4, 0, -4.4, -12, 1.2);
+      g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#8a9097');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(-4.4, -12, 1.1, 0, Math.PI * 2); ctx.fill();
+    }
+
     // ---------- bandita ----------
     function drawBandit(ctx) {
       shadow(ctx, 3, 13, 13, 3.6, 0.6);
@@ -699,6 +762,7 @@ const SPRITES = (() => {
       lighthouse: { box: { x: -14, y: -28, w: 28, h: 48 }, draw: drawLighthouse },
       port: { box: { x: -19, y: -26, w: 37, h: 44 }, draw: drawPort },
       bandit: { box: { x: -15, y: -20, w: 30, h: 37 }, draw: drawBandit },
+      soldier: { box: { x: -10, y: -30, w: 19, h: 32 }, draw: drawSoldier },
       bridgeArm: { box: { x: -2, y: -13, w: 49, h: 27 }, draw: drawBridgeArm },
       bridgeHub: { box: { x: -14, y: -14, w: 30, h: 30 }, draw: drawBridgeHub },
     };
