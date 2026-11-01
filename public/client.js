@@ -34,6 +34,9 @@ const COSTS = {
 };
 const DIRS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
 const LEVEL_NAMES = { easy: '😊 Ľahká', normal: '🙂 Stredná', hard: '😈 Ťažká' };
+const BRIDGE_SEGS = 8;      // počet „dosiek“ pri animácii stavby
+const PLANK_START = 380;    // ms – dosky sa začnú klásť, keď sa vynorí pilier
+const PLANK_STEP = 85;      // ms medzi doskami
 const DIE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
 const RULES = `
@@ -434,6 +437,7 @@ const TILE_DEFS = (() => {
   };
   return `<defs>
     <clipPath id="hexclip"><polygon points="${hexPts(0, 0)}"/></clipPath>
+    ${Array.from({ length: BRIDGE_SEGS }, (_, i) => `<clipPath id="bseg${i}"><rect x="${(-2 + i * 6.2).toFixed(1)}" y="-14" width="6.45" height="28"/></clipPath>`).join('')}
     ${grad('g-les', '#5aa469', '#245c3b')}
     ${grad('g-lom', '#b8c1cc', '#6b7785')}
     ${grad('g-bana', '#a8714a', '#5a3620')}
@@ -611,10 +615,21 @@ function runPendingFx(pos) {
       case 'up': p = at(0, 22); if (p) { PFX.sparks(p.x, p.y, p.s, 0.25); PFX.smoke(p.x, p.y + 10, p.s, 0.1); PFX.dust(p.x, p.y + 14, p.s, 0.4); } break;
       case 'lh': p = at(27, 28); if (p) PFX.dust(p.x, p.y, p.s * 0.8, 0.45, '200,200,200'); break;
       case 'port': p = at(-27, 26); if (p) PFX.splash(p.x, p.y, p.s, 0.3); break;
-      case 'bridge': for (const [dx, d] of [[-22, 0.15], [0, 0.35], [22, 0.55]]) {
-        const ang = DIR_ANGLES[h.bridgeDir || 0] * Math.PI / 180;
-        p = at(Math.cos(ang) * dx, Math.sin(ang) * dx);
-        if (p) PFX.splash(p.x, p.y, p.s * 0.7, d);
+      case 'bridge': {
+        p = at(0, 0);
+        if (p) PFX.splash(p.x, p.y, p.s, 0.05); // pilier sa vynorí
+        for (const d of bridgeDirs(h)) {
+          const ang = DIR_ANGLES[d] * Math.PI / 180;
+          for (let i = 0; i < BRIDGE_SEGS; i += 2) {
+            const dist = 2 + i * 6.2 + 3;
+            const q = at(Math.cos(ang) * dist, Math.sin(ang) * dist);
+            if (!q) continue;
+            const t = (PLANK_START + i * PLANK_STEP + 180) / 1000;
+            PFX.splash(q.x, q.y, q.s * 0.45, t);
+            PFX.dust(q.x, q.y, q.s * 0.35, t, '150,105,60'); // triesky a piliny
+          }
+        }
+        FX.sound('hammer');
       } break;
       case 'reveal': p = at(0, 0); if (p) PFX.sparks(p.x, p.y, p.s * 0.8, 0.15); break;
     }
@@ -745,7 +760,8 @@ function numberDots(x, y, n, hot) {
 
 // Most: stredový pilier a ramená ku každej susednej stavbe/mostu toho istého hráča
 const DIR_ANGLES = [0, -60, -120, 180, 120, 60];
-function bridgeSvg(x, y, h, c) {
+// smery ramien mosta: ku každej susednej stavbe/mostu toho istého hráča
+function bridgeDirs(h) {
   const m = hexMap();
   const dirs = [];
   DIRS.forEach(([dq, dr], i) => {
@@ -754,15 +770,28 @@ function bridgeSvg(x, y, h, c) {
   });
   if (!dirs.length) dirs.push(h.bridgeDir || 0);
   if (dirs.length === 1) dirs.push((dirs[0] + 3) % 6); // jediné spojenie → most prejde na protiľahlý breh
+  return dirs;
+}
+function bridgeSvg(x, y, h, c) {
+  const dirs = bridgeDirs(h);
   const sprites = typeof SPRITES !== 'undefined' && SPRITES;
   const a = animOf(h.k + ':B');
   const arm = sprites ? SPRITES.image('bridgeArm', 0, 0, c)
     : `<rect x="2" y="-5" width="40" height="10" fill="#8a5a30" stroke="#3d2614"/><rect x="2" y="-6.5" width="40" height="1.5" fill="${c}"/><rect x="2" y="5" width="40" height="1.5" fill="${c}"/>`;
   let out = '';
-  for (const d of dirs) {
-    const inner = a ? `<g class="anim b-bridge" style="${a.style}">${arm}</g>` : arm;
-    out += `<g transform="translate(${x},${y}) rotate(${DIR_ANGLES[d]})">${inner}</g>`;
+  // vlny okolo piliera, ktorý sa vynára z vody
+  if (a) {
+    out += `<g class="anim" style="${a.style}">${[0, 1, 2].map(i => `<ellipse class="ripple" cx="${x}" cy="${y + 2}" rx="13" ry="13"
+      fill="none" stroke="#d6f0ff" stroke-width="1.6" style="animation-delay:calc(var(--t) + ${i * 260}ms)"/>`).join('')}</g>`;
   }
+  dirs.forEach((d, arm_i) => {
+    // pri stavbe sa dosky kladú postupne od piliera k brehu
+    const inner = a
+      ? Array.from({ length: BRIDGE_SEGS }, (_, i) => `<g class="anim plank" clip-path="url(#bseg${i})"
+          style="${a.style};--i:${i + arm_i * 0.5}">${arm}</g>`).join('')
+      : arm;
+    out += `<g transform="translate(${x},${y}) rotate(${DIR_ANGLES[d]})">${inner}</g>`;
+  });
   const hub = sprites ? SPRITES.image('bridgeHub', 0, 0, c) : `<circle r="8" fill="#8a5a30" stroke="#3d2614"/>`;
   out += `<g transform="translate(${x},${y})">${a ? `<g class="anim b-hub" style="${a.style}">${hub}</g>` : hub}</g>`;
   return out;
