@@ -75,6 +75,9 @@ otvoriť `http://<IP-tvojho-počítača>:3000`.
 - **Banditi:** začínajú v horách (na baníckom poli). Keď je súčet oboch kociek 7, hráč na ťahu
   ich môže presunúť na ľubovoľnú odkrytú pevninu alebo nechať na mieste. Pole s banditmi nič neprodukuje.
 - **Stavby** (jedna na políčko): Tábor 1 b., Mesto 2 b., Maják 1 b. (na pobreží, výmena 3:1, ochrana pred pirátmi).
+- **Most** (2 drevo, kameň): stavia sa na odkryté morské pole vedľa vlastnej stavby alebo mosta, max. 4.
+  Od mosta môžeš stavať tábory a robiť výpravy na druhom brehu; most je súčasťou cesty (Najdlhšia cesta),
+  body ani suroviny nedáva.
 - **Prístav** (2 drevo, ruda, obilie): na pobrežnej stavbe, 1 b., max. 2. S bankou meníš
   **2:1 surovinu poľa, na ktorom prístav stojí** (napr. prístav na lese = drevo 2:1). Hráči s prístavom si
   môžu posielať **námorné ponuky kedykoľvek, aj mimo svojho ťahu**. Ponuka platí jedno celé kolo,

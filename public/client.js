@@ -26,6 +26,7 @@ const TERRAIN = {
 };
 const COSTS = {
   port: { drevo: 2, ruda: 1, obilie: 1 },
+  bridge: { drevo: 2, kamen: 1 },
   camp: { drevo: 1, kamen: 1, obilie: 1 },
   town: { ruda: 2, obilie: 2, sol: 1 },
   lighthouse: { kamen: 2, drevo: 1, sol: 1 },
@@ -50,6 +51,7 @@ const RULES = `
   <li>🏰 <b>Mesto</b> (2 ruda, 2 obilie, soľ) – vylepší tábor, 2 body a dvojitá produkcia. Max. 4.</li>
   <li>🗼 <b>Maják</b> (2 kameň, drevo, soľ) – na pobrežnej stavbe, 1 bod, výmena s bankou 3:1 a ochrana pred pirátmi. Max. 3.</li>
   </ul></li>
+<li>🌉 <b>Most</b> (2 drevo, kameň) – staviaš ho na odkryté <b>morské pole</b> vedľa svojej stavby alebo mosta. Od mosta môžeš stavať tábory a robiť výpravy na druhom brehu a most je súčasťou tvojej <b>cesty</b>. Body nedáva. Max. 4.</li>
 <li>⚓ <b>Prístav</b> (2 drevo, ruda, obilie) – na pobrežnej stavbe, 1 bod. Max. 2. S bankou meníš <b>2:1 surovinu poľa, na ktorom prístav stojí</b>. Hráči s prístavom si môžu posielať <b>námorné ponuky kedykoľvek</b>, aj mimo svojho ťahu. Ponuka platí jedno celé kolo a prijať ju môže len hráč s prístavom.</li>
 <li>⚔️ <b>Vojaci</b> (ruda, obilie): kto má najviac vojakov (aspoň 3), má <b>Najväčšie vojsko</b> a <b>+2 body</b>. Titul prevezme len hráč s väčším vojskom. Aspoň 2 vojaci chránia pred pirátmi. S aspoň 1 vojakom môžeš raz za ťah <b>vyhnať banditov</b> zo svojho poľa späť do hôr.</li>
 <li>🛤️ <b>Najdlhšia cesta</b>: tvoje stavby na susedných poliach tvoria cestu. Kto má najdlhšiu reťaz stavieb za sebou (aspoň 4), získa <b>+2 body</b>. Titul prevezme len hráč s dlhšou cestou.</li>
@@ -319,7 +321,7 @@ function modeName(m) {
     const d = c && cardDef(c.type);
     return d ? d.name : 'karta';
   }
-  return { place: 'tábor', camp: 'tábor', town: 'mesto', lighthouse: 'maják', port: 'prístav', explore: 'výprava' }[m];
+  return { place: 'tábor', camp: 'tábor', town: 'mesto', lighthouse: 'maják', port: 'prístav', bridge: 'most', explore: 'výprava' }[m];
 }
 
 function hexMap() {
@@ -333,7 +335,7 @@ function validHexes() {
   const m = hexMap();
   const nbrs = h => DIRS.map(([a, b]) => m[(h.q + a) + ',' + (h.r + b)]).filter(Boolean);
   const own = h => h.building && h.building.owner === S.me;
-  const adjOwn = h => nbrs(h).some(own);
+  const adjOwn = h => nbrs(h).some(n => own(n) || n.bridge === S.me); // stavby aj mosty
   const land = h => h.revealed && h.terrain !== 'more';
   const out = new Set();
   const m2 = S.phase === 'setup' ? 'place' : S.pendingBandits ? 'bandits' : mode;
@@ -343,6 +345,7 @@ function validHexes() {
     else if (m2 === 'camp') ok = land(h) && !h.building && adjOwn(h);
     else if (m2 === 'town') ok = own(h) && h.building.type === 'camp';
     else if (m2 === 'lighthouse') ok = own(h) && !h.lighthouse && h.coastal;
+    else if (m2 === 'bridge') ok = h.revealed && h.terrain === 'more' && !h.bridge && adjOwn(h);
     else if (m2 === 'port') ok = own(h) && !h.port && h.coastal;
     else if (m2 && m2.startsWith('card:')) {
       const c = (me().devCards || []).find(x => x.id === m2.slice(5));
@@ -608,6 +611,11 @@ function runPendingFx(pos) {
       case 'up': p = at(0, 22); if (p) { PFX.sparks(p.x, p.y, p.s, 0.25); PFX.smoke(p.x, p.y + 10, p.s, 0.1); PFX.dust(p.x, p.y + 14, p.s, 0.4); } break;
       case 'lh': p = at(27, 28); if (p) PFX.dust(p.x, p.y, p.s * 0.8, 0.45, '200,200,200'); break;
       case 'port': p = at(-27, 26); if (p) PFX.splash(p.x, p.y, p.s, 0.3); break;
+      case 'bridge': for (const [dx, d] of [[-22, 0.15], [0, 0.35], [22, 0.55]]) {
+        const ang = DIR_ANGLES[h.bridgeDir || 0] * Math.PI / 180;
+        p = at(Math.cos(ang) * dx, Math.sin(ang) * dx);
+        if (p) PFX.splash(p.x, p.y, p.s * 0.7, d);
+      } break;
       case 'reveal': p = at(0, 0); if (p) PFX.sparks(p.x, p.y, p.s * 0.8, 0.15); break;
     }
   }
@@ -617,7 +625,7 @@ function trackBuildAnims() {
   const now = performance.now();
   const snap = {};
   for (const h of S.hexes) {
-    snap[h.k] = { b: h.building ? h.building.type : '', L: !!h.lighthouse, P: !!h.port, R: !!h.revealed };
+    snap[h.k] = { b: h.building ? h.building.type : '', L: !!h.lighthouse, P: !!h.port, R: !!h.revealed, B: !!h.bridge };
   }
   if (boardSnap) {
     for (const h of S.hexes) {
@@ -627,6 +635,7 @@ function trackBuildAnims() {
       else if (cur.b === 'town' && prev.b === 'camp') { anims[h.k + ':b'] = { kind: 'up', t0: now }; pendingFx.push({ k: h.k, kind: 'up' }); }
       if (cur.L && !prev.L) { anims[h.k + ':L'] = { kind: 'lh', t0: now }; pendingFx.push({ k: h.k, kind: 'lh' }); }
       if (cur.P && !prev.P) { anims[h.k + ':P'] = { kind: 'port', t0: now }; pendingFx.push({ k: h.k, kind: 'port' }); }
+      if (cur.B && prev.B === false) { anims[h.k + ':B'] = { kind: 'bridge', t0: now }; pendingFx.push({ k: h.k, kind: 'bridge' }); }
       if (cur.R && prev.R === false) { anims[h.k + ':r'] = { kind: 'reveal', t0: now }; pendingFx.push({ k: h.k, kind: 'reveal' }); }
     }
   }
@@ -685,15 +694,17 @@ function roadsSvg(pos) {
   let low = '', high = '';
   const now = performance.now();
   const edges = new Set();
+  const owner = h => (h.building ? h.building.owner : h.bridge || null);
   for (const h of S.hexes) {
-    if (!h.building) continue;
+    if (!owner(h)) continue;
     for (const [dq, dr] of DIRS) {
       const n = m[(h.q + dq) + ',' + (h.r + dr)];
-      if (!n || !n.building || n.building.owner !== h.building.owner || n.k < h.k) continue;
+      if (!n || owner(n) !== owner(h) || n.k < h.k) continue;
       const [x1, y1] = pos(h);
       const [x2, y2] = pos(n);
-      const c = pl(h.building.owner).color;
-      const d = `M${x1},${y1 + 30} L${x2},${y2 + 30}`;
+      const c = pl(owner(h)).color;
+      // pri moste vedie cesta do jeho stredu (mostovka ju prekryje)
+      const d = `M${x1},${y1 + (h.building ? 30 : 0)} L${x2},${y2 + (n.building ? 30 : 0)}`;
       const ek = [h.k, n.k].sort().join('|');
       edges.add(ek);
       if (edgeSnap && !edgeSnap.has(ek)) anims['e:' + ek] = { kind: 'road', t0: now };
@@ -732,6 +743,31 @@ function numberDots(x, y, n, hot) {
   return out;
 }
 
+// Most: stredový pilier a ramená ku každej susednej stavbe/mostu toho istého hráča
+const DIR_ANGLES = [0, -60, -120, 180, 120, 60];
+function bridgeSvg(x, y, h, c) {
+  const m = hexMap();
+  const dirs = [];
+  DIRS.forEach(([dq, dr], i) => {
+    const n = m[(h.q + dq) + ',' + (h.r + dr)];
+    if (n && ((n.building && n.building.owner === h.bridge) || n.bridge === h.bridge)) dirs.push(i);
+  });
+  if (!dirs.length) dirs.push(h.bridgeDir || 0);
+  if (dirs.length === 1) dirs.push((dirs[0] + 3) % 6); // jediné spojenie → most prejde na protiľahlý breh
+  const sprites = typeof SPRITES !== 'undefined' && SPRITES;
+  const a = animOf(h.k + ':B');
+  const arm = sprites ? SPRITES.image('bridgeArm', 0, 0, c)
+    : `<rect x="2" y="-5" width="40" height="10" fill="#8a5a30" stroke="#3d2614"/><rect x="2" y="-6.5" width="40" height="1.5" fill="${c}"/><rect x="2" y="5" width="40" height="1.5" fill="${c}"/>`;
+  let out = '';
+  for (const d of dirs) {
+    const inner = a ? `<g class="anim b-bridge" style="${a.style}">${arm}</g>` : arm;
+    out += `<g transform="translate(${x},${y}) rotate(${DIR_ANGLES[d]})">${inner}</g>`;
+  }
+  const hub = sprites ? SPRITES.image('bridgeHub', 0, 0, c) : `<circle r="8" fill="#8a5a30" stroke="#3d2614"/>`;
+  out += `<g transform="translate(${x},${y})">${a ? `<g class="anim b-hub" style="${a.style}">${hub}</g>` : hub}</g>`;
+  return out;
+}
+
 function renderBoard() {
   const svg = $('board');
   const R = HEX_R;
@@ -744,7 +780,7 @@ function renderBoard() {
   svg.setAttribute('viewBox', `${minX} ${minY} ${Math.max(...xs) - minX + pad} ${Math.max(...ys) - minY + pad}`);
   const valid = validHexes();
   const lastNum = S.dice ? S.dice[0] + S.dice[1] : null; // produkuje súčet oboch kociek
-  let tiles = '', seaTiles = '', shore = '', pieces = '', marks = '', banditPiece = '', fxLayer = '';
+  let tiles = '', seaTiles = '', shore = '', pieces = '', marks = '', banditPiece = '', fxLayer = '', bridges = '';
   const landTiles = [];
   const DEPTH = 7; // hrúbka ostrova – pevnina je vyvýšená ako na makete
   trackBuildAnims();
@@ -798,6 +834,7 @@ function renderBoard() {
       seaTiles += tileG;
     }
     if (valid.has(h.k)) marks += `<polygon class="hl" points="${hexPts(x, y, R - 2)}"/>`;
+    if (h.bridge && pl(h.bridge)) bridges += bridgeSvg(x, y, h, pl(h.bridge).color);
     if (h.building) {
       const c = pl(h.building.owner).color;
       const winG = S.phase === 'ended' && h.building.owner === S.winner;
@@ -832,7 +869,7 @@ function renderBoard() {
   const vb = svg.viewBox.baseVal;
   const cloudShadows = TEXTURES && TEXTURES.cshadow ? `<g clip-path="url(#oceanclip)" pointer-events="none">
     <rect class="cshadow" x="${vb.x - 320}" y="${vb.y - 320}" width="${vb.width + 640}" height="${vb.height + 640}" fill="url(#tx-cshadow)"/></g>` : '';
-  svg.innerHTML = TILE_DEFS + oceanSvg(vb.x, vb.y, vb.width, vb.height) + `<g>${seaTiles}</g><g class="shore">${shore}</g><g filter="url(#f-shadow)">${tiles}</g>${cloudShadows}<g pointer-events="none">${marks}${roadsSvg(pos)}${pieces}${banditPiece}${fxLayer}</g>`;
+  svg.innerHTML = TILE_DEFS + oceanSvg(vb.x, vb.y, vb.width, vb.height) + `<g>${seaTiles}</g><g class="shore">${shore}</g><g filter="url(#f-shadow)">${tiles}</g>${cloudShadows}<g pointer-events="none">${marks}${roadsSvg(pos)}${bridges}${pieces}${banditPiece}${fxLayer}</g>`;
   runPendingFx(pos);
   svg.querySelectorAll('.hex.valid').forEach(g => {
     g.onclick = () => {
@@ -847,7 +884,7 @@ function renderBoard() {
   });
   $('legend').innerHTML = Object.values(TERRAIN).map(t =>
     `<span><i style="background:${t.color}"></i>${t.name}${t.res ? ' ' + icon(t.res, 14) : ''}</span>`).join('')
-    + '<span>⛺ tábor</span><span>🏰 mesto</span><span>🗼 maják</span><span>⚓ prístav</span><span>🛤️ cesta</span><span>🦹 banditi</span>';
+    + '<span>⛺ tábor</span><span>🏰 mesto</span><span>🗼 maják</span><span>⚓ prístav</span><span>🌉 most</span><span>🛤️ cesta</span><span>🦹 banditi</span>';
 }
 
 function renderPlayers() {
@@ -855,7 +892,7 @@ function renderPlayers() {
     <div class="prow ${p.id === S.current ? 'cur' : ''} ${p.online ? '' : 'off'}" data-pid="${p.id}">
       <span class="dot" style="background:${p.color}"></span>
       <span class="nm">${esc(p.name)}${p.bot ? ` <small>${(LEVEL_NAMES[p.level] || '').split(' ')[0]}</small>` : ''}${p.id === S.me ? ' (ty)' : ''}${p.online ? '' : ' 📴'}<br>
-        <small class="stats">🃏 ${p.cards} · ⛺${p.camps} 🏰${p.towns} 🗼${p.lighthouses} ⚓${p.ports || 0} · 🧭${p.discoveries}${S.explorer === p.id ? ' 🏅' : ''} · 📜${p.contracts.length} · 🎴${p.devCount || 0} · 🛤️${p.roadLen || 0}${S.roadHolder === p.id ? ' ⭐' : ''} · ⚔️${p.soldiers || 0}${S.armyHolder === p.id ? ' 🎖️' : ''}</small></span>
+        <small class="stats">🃏 ${p.cards} · ⛺${p.camps} 🏰${p.towns} 🗼${p.lighthouses} ⚓${p.ports || 0} 🌉${p.bridges || 0} · 🧭${p.discoveries}${S.explorer === p.id ? ' 🏅' : ''} · 📜${p.contracts.length} · 🎴${p.devCount || 0} · 🛤️${p.roadLen || 0}${S.roadHolder === p.id ? ' ⭐' : ''} · ⚔️${p.soldiers || 0}${S.armyHolder === p.id ? ' 🎖️' : ''}</small></span>
       <span class="vp">${p.vp}</span>
     </div>`).join('')
     + (S.phase !== 'ended' && pl(S.current) && !pl(S.current).online && S.current !== S.me
@@ -1213,6 +1250,7 @@ function renderActions() {
     <button data-mode="town" ${dis(COSTS.town, m.towns >= 4 || !m.camps)} class="${mode === 'town' ? 'active' : ''}">🏰 Mesto<small>${costStr(COSTS.town)}</small></button>
     <button data-mode="lighthouse" ${dis(COSTS.lighthouse, m.lighthouses >= 3)} class="${mode === 'lighthouse' ? 'active' : ''}">🗼 Maják<small>${costStr(COSTS.lighthouse)}</small></button>
     <button data-mode="port" ${dis(COSTS.port, (m.ports || 0) >= 2)} class="${mode === 'port' ? 'active' : ''}">⚓ Prístav<small>${costStr(COSTS.port)}</small></button>
+    <button data-mode="bridge" ${dis(COSTS.bridge, (m.bridges || 0) >= 4)} class="${mode === 'bridge' ? 'active' : ''}">🌉 Most<small>${costStr(COSTS.bridge)}</small></button>
     <button data-mode="explore" ${dis(COSTS.explore)} class="${mode === 'explore' ? 'active' : ''}">🧭 Výprava<small>${costStr(COSTS.explore)}</small></button>
     <button id="btnRecruit" ${dis(S.soldierCost || {}, (m.soldiers || 0) >= 10)}>⚔️ Vojak<small>${costStr(S.soldierCost || {})}</small></button>
     ${S.rolled && !S.chased && (m.soldiers || 0) > 0 && S.bandits && (hexMap()[S.bandits] || {}).building && hexMap()[S.bandits].building.owner === S.me

@@ -12,9 +12,10 @@ const COSTS = {
   town: { ruda: 2, obilie: 2, sol: 1 },
   lighthouse: { kamen: 2, drevo: 1, sol: 1 },
   port: { drevo: 2, ruda: 1, obilie: 1 },
+  bridge: { drevo: 2, kamen: 1 },
   explore: { drevo: 1, obilie: 1 },
 };
-const LIMITS = { camp: 6, town: 4, lighthouse: 3, port: 2 };
+const LIMITS = { camp: 6, town: 4, lighthouse: 3, port: 2, bridge: 4 };
 const COLORS = ['#e4572e', '#2e86de', '#f2c14e', '#3bb273', '#9b5de5'];
 const MAX_PLAYERS = 5;
 const MAP_RADIUS = 3;
@@ -138,7 +139,7 @@ function generateMap(rng) {
     if (outerWater.has(k)) hexes[k] = { q: h.q, r: h.r, terrain: 'more', num: null, revealed: false };
     else hexes[k] = { q: h.q, r: h.r, terrain: outerTerr.pop(), num: outerNums.pop(), revealed: false };
   }
-  for (const k in hexes) Object.assign(hexes[k], { building: null, lighthouse: false, port: false });
+  for (const k in hexes) Object.assign(hexes[k], { building: null, lighthouse: false, port: false, bridge: null, bridgeDir: null });
   return hexes;
 }
 
@@ -271,8 +272,13 @@ class Game {
     return h.terrain !== 'more';
   }
 
+  // vlastný uzol siete = stavba alebo most hráča
+  ownsNode(h, pid) {
+    return (h.building && h.building.owner === pid) || h.bridge === pid;
+  }
+
   adjacentToOwn(h, pid) {
-    return this.neighbors(h).some(n => n.building && n.building.owner === pid);
+    return this.neighbors(h).some(n => this.ownsNode(n, pid));
   }
 
   isCoastal(h) {
@@ -286,6 +292,7 @@ class Game {
       const h = this.hexes[k];
       if (type === 'lighthouse') { if (h.lighthouse && h.building.owner === pid) c++; }
       else if (type === 'port') { if (h.port && h.building.owner === pid) c++; }
+      else if (type === 'bridge') { if (h.bridge === pid) c++; }
       else if (h.building && h.building.owner === pid && h.building.type === type) c++;
     }
     return c;
@@ -355,7 +362,7 @@ class Game {
   longestPath(pid, extraKey = null) {
     const mine = new Set(Object.keys(this.hexes).filter(k => {
       const h = this.hexes[k];
-      return h.building && h.building.owner === pid;
+      return this.ownsNode(h, pid); // stavby aj mosty
     }));
     if (extraKey) mine.add(extraKey);
     const adj = {};
@@ -638,6 +645,19 @@ class Game {
       this.pay(p, COSTS.lighthouse);
       h.lighthouse = true;
       this.addLog(`${p.name} stavia maják.`);
+    } else if (kind === 'bridge') {
+      if (!h.revealed || this.isLand(h)) throw new GameError('Most sa stavia na odkryté morské pole.');
+      if (h.bridge) throw new GameError('Tu už most stojí.');
+      const dir = DIRS.findIndex(([dq, dr]) => {
+        const n = this.hexes[key(h.q + dq, h.r + dr)];
+        return n && this.ownsNode(n, p.id);
+      });
+      if (dir < 0) throw new GameError('Most musí nadväzovať na tvoju stavbu alebo most.');
+      if (this.count(p.id, 'bridge') >= LIMITS.bridge) throw new GameError('Nemáš už voľné mosty.');
+      this.pay(p, COSTS.bridge);
+      h.bridge = p.id;
+      h.bridgeDir = dir;
+      this.addLog(`🌉 ${p.name} stavia most cez more.`);
     } else if (kind === 'port') {
       if (!h.building || h.building.owner !== p.id) throw new GameError('Prístav sa stavia pri tvojej stavbe.');
       if (h.port) throw new GameError('Tu už prístav stojí.');
@@ -932,6 +952,7 @@ class Game {
         towns: this.phase === 'lobby' ? 0 : this.count(p.id, 'town'),
         lighthouses: this.phase === 'lobby' ? 0 : this.count(p.id, 'lighthouse'),
         ports: this.phase === 'lobby' ? 0 : this.count(p.id, 'port'),
+        bridges: this.phase === 'lobby' ? 0 : this.count(p.id, 'bridge'),
       })),
       log: this.log.slice(-40),
     };
@@ -978,6 +999,8 @@ class Game {
         building: h.building,
         lighthouse: h.lighthouse,
         port: !!h.port,
+        bridge: h.bridge || null,
+        bridgeDir: h.bridge ? h.bridgeDir : null,
         coastal: this.isCoastal(h),
       })),
     });

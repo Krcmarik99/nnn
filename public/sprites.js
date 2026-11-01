@@ -529,6 +529,92 @@ const SPRITES = (() => {
       ctx.beginPath(); ctx.moveTo(10.3, 2); ctx.quadraticCurveTo(9, 0, 7.6, -1.6); ctx.stroke();
     }
 
+    // ---------- most: rameno zo stredu poľa k brehu (os +x) a stredový pilier ----------
+    function deck(ctx, x0, x1) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x0, -5, x1 - x0, 10); ctx.clip();
+      for (let x = x0; x < x1; x += 2.1) {
+        ctx.fillStyle = css(shade([140, 94, 52], 0.85 + rnd() * 0.3));
+        ctx.fillRect(x + 0.12, -5, 1.9, 10);
+        ctx.fillStyle = 'rgba(40,20,8,.45)';
+        ctx.fillRect(x + 2, -5, 0.15, 10);
+        ctx.fillStyle = 'rgba(30,16,6,.6)';
+        ctx.fillRect(x + 0.9, -3.6, 0.3, 0.3); ctx.fillRect(x + 0.9, 3.3, 0.3, 0.3);
+      }
+      grain(ctx, x0, -5, x1 - x0, 10, 180, 0.08);
+      const g = ctx.createLinearGradient(0, -5, 0, 5);
+      g.addColorStop(0, 'rgba(255,240,210,.22)'); g.addColorStop(1, 'rgba(0,0,0,.22)');
+      ctx.fillStyle = g; ctx.fillRect(x0, -5, x1 - x0, 10);
+      ctx.restore();
+      for (const [y, dark] of [[-6.2, 0.75], [4.8, 0.5]]) {
+        const bg = ctx.createLinearGradient(0, y, 0, y + 1.4);
+        bg.addColorStop(0, css(shade([110, 70, 38], 1.15)));
+        bg.addColorStop(1, css(shade([110, 70, 38], dark)));
+        ctx.fillStyle = bg;
+        ctx.fillRect(x0, y, x1 - x0, 1.4);
+        for (let x = x0 + 4; x <= x1 - 2; x += 6.6) {
+          ctx.fillStyle = '#3d2614';
+          ctx.fillRect(x - 0.55, y - 0.35, 1.1, 2.1);
+          ctx.fillStyle = 'rgba(255,220,170,.35)';
+          ctx.fillRect(x - 0.55, y - 0.35, 1.1, 0.4);
+        }
+      }
+    }
+    function pier(ctx, x, y, rx, ry) {
+      ctx.strokeStyle = 'rgba(230,245,255,.55)';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.ellipse(x + 0.6, y + 0.8, rx + 1.2, ry + 1.4, 0, 0, Math.PI * 2); ctx.stroke();
+      const g = ctx.createRadialGradient(x - rx * 0.3, y - ry * 0.25, 0, x, y, Math.max(rx, ry));
+      g.addColorStop(0, '#c9c4bb'); g.addColorStop(1, '#5e5a54');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(40,36,30,.6)'; ctx.lineWidth = 0.3; ctx.stroke();
+    }
+    function drawBridgeArm(ctx, P) {
+      for (let i = 4; i > 0; i--) {
+        ctx.fillStyle = 'rgba(0,10,20,.09)';
+        ctx.fillRect(2 - i * 0.6, -6 + 4 - i * 0.6, 44 + i * 1.2, 12 + i * 1.2);
+      }
+      pier(ctx, 22, 0, 3.8, 8.8);
+      // nábrežná opora na konci
+      ctx.save();
+      ctx.beginPath(); ctx.rect(40, -7.5, 5, 15); ctx.clip();
+      bricks(ctx, 40, -7.5, 45, 7.5, [176, 168, 154], 2.5);
+      const g = ctx.createLinearGradient(40, 0, 45, 0);
+      g.addColorStop(0, 'rgba(255,255,255,.12)'); g.addColorStop(1, 'rgba(0,0,0,.3)');
+      ctx.fillStyle = g; ctx.fillRect(40, -7.5, 5, 15);
+      ctx.restore();
+      deck(ctx, 2, 41);
+      // vlajočka vo farbe hráča na konci
+      ctx.strokeStyle = '#2b1a0c'; ctx.lineWidth = 0.45;
+      ctx.beginPath(); ctx.moveTo(39, -6.4); ctx.lineTo(39, -11); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(39, -11); ctx.lineTo(44, -9.8); ctx.lineTo(39, -8.4); ctx.closePath();
+      const fg = ctx.createLinearGradient(39, 0, 44, 0);
+      fg.addColorStop(0, css(shade(P, 1.15))); fg.addColorStop(1, css(shade(P, 0.75)));
+      ctx.fillStyle = fg; ctx.fill();
+    }
+    function drawBridgeHub(ctx) {
+      shadow(ctx, 2, 4, 12, 11, 0.4);
+      pier(ctx, 0, 0, 10, 10);
+      // okrúhla drevená plošina
+      ctx.save();
+      ctx.beginPath(); ctx.arc(0, 0, 7.6, 0, Math.PI * 2); ctx.clip();
+      for (let x = -8; x < 8; x += 2.1) {
+        ctx.fillStyle = css(shade([140, 94, 52], 0.85 + rnd() * 0.3));
+        ctx.fillRect(x + 0.12, -8, 1.9, 16);
+      }
+      const g = ctx.createRadialGradient(-2.5, -2.5, 0, 0, 0, 8);
+      g.addColorStop(0, 'rgba(255,240,210,.25)'); g.addColorStop(1, 'rgba(0,0,0,.3)');
+      ctx.fillStyle = g; ctx.fillRect(-8, -8, 16, 16);
+      ctx.restore();
+      ctx.strokeStyle = '#4e3018'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(0, 0, 7.6, 0, Math.PI * 2); ctx.stroke();
+      // lampa v strede
+      glow(ctx, 0, -1, 4, [255, 210, 120], 0.45);
+      ctx.fillStyle = '#2b2b2b'; ctx.fillRect(-0.6, -1.6, 1.2, 2.4);
+      ctx.fillStyle = '#ffd98a'; ctx.beginPath(); ctx.arc(0, -1.8, 0.9, 0, Math.PI * 2); ctx.fill();
+    }
+
     // ---------- bandita ----------
     function drawBandit(ctx) {
       shadow(ctx, 3, 13, 13, 3.6, 0.6);
@@ -613,6 +699,8 @@ const SPRITES = (() => {
       lighthouse: { box: { x: -14, y: -28, w: 28, h: 48 }, draw: drawLighthouse },
       port: { box: { x: -19, y: -26, w: 37, h: 44 }, draw: drawPort },
       bandit: { box: { x: -15, y: -20, w: 30, h: 37 }, draw: drawBandit },
+      bridgeArm: { box: { x: -2, y: -13, w: 49, h: 27 }, draw: drawBridgeArm },
+      bridgeHub: { box: { x: -14, y: -14, w: 30, h: 30 }, draw: drawBridgeHub },
     };
 
     // vráti <image> pre SVG – x, y je bod ukotvenia

@@ -113,6 +113,17 @@ function options(g, p) {
     const coast = entries(g).filter(([, h]) => own(h, p) && !h.lighthouse && g.isCoastal(h));
     if (coast.length) opts.push({ action: { type: 'build', kind: 'lighthouse', hex: coast[0][0] }, cost: COSTS.lighthouse, pri: lights ? 1.5 : lv(p).valueAware ? 0.5 : 0.8 });
   }
+  // most cez more, ak otvorí nové miesta na stavbu alebo výpravu
+  if ((LIMITS.bridge || 0) > g.count(p.id, 'bridge')) {
+    const reach = h => g.neighbors(h).filter(n => !n.building && !n.bridge && !g.adjacentToOwn(n, p.id)
+      && (!n.revealed || g.isLand(n))).length;
+    const cand = entries(g).filter(([, h]) => h.revealed && !g.isLand(h) && !h.bridge && g.adjacentToOwn(h, p.id))
+      .map(([k, h]) => [k, reach(h)]).filter(([, v]) => v > 0);
+    if (cand.length) {
+      const [k] = best(cand, ([, v]) => v + Math.random() * 0.2);
+      opts.push({ action: { type: 'build', kind: 'bridge', hex: k }, cost: COSTS.bridge, pri: spots.length ? 1.7 : 0.4 });
+    }
+  }
   if (g.count(p.id, 'port') < LIMITS.port) {
     const coast = entries(g).filter(([, h]) => own(h, p) && !h.port && g.isCoastal(h));
     const ports = g.count(p.id, 'port');
