@@ -521,11 +521,82 @@ function banditSvg(x, y, fresh) {
 }
 
 // Cesty: spojnice medzi susednými stavbami toho istého hráča; najdlhšia cesta je zvýraznená
+// ---------- animácie stavania ----------
+const ANIM_MS = 1600;            // ako dlho sa nová stavba považuje za „čerstvú“
+let boardSnap = null;            // stav stavieb pri poslednom vykreslení
+let edgeSnap = null;             // spojnice (cesty) pri poslednom vykreslení
+const anims = {};                // kľúč → { kind, t0 }
+
+function trackBuildAnims() {
+  const now = performance.now();
+  const snap = {};
+  for (const h of S.hexes) {
+    snap[h.k] = { b: h.building ? h.building.type : '', L: !!h.lighthouse, P: !!h.port };
+  }
+  if (boardSnap) {
+    for (const h of S.hexes) {
+      const prev = boardSnap[h.k] || { b: '', L: false, P: false };
+      const cur = snap[h.k];
+      if (cur.b && !prev.b) anims[h.k + ':b'] = { kind: 'new', t0: now };
+      else if (cur.b === 'town' && prev.b === 'camp') anims[h.k + ':b'] = { kind: 'up', t0: now };
+      if (cur.L && !prev.L) anims[h.k + ':L'] = { kind: 'lh', t0: now };
+      if (cur.P && !prev.P) anims[h.k + ':P'] = { kind: 'port', t0: now };
+    }
+  }
+  boardSnap = snap;
+  for (const k in anims) if (now - anims[k].t0 > ANIM_MS) delete anims[k];
+}
+
+// Atribúty pre animovaný prvok: záporné oneskorenie, aby prekreslenie animáciu nereštartovalo
+function animOf(key) {
+  const a = anims[key];
+  if (!a) return null;
+  return { kind: a.kind, style: `--t:-${Math.round(performance.now() - a.t0)}ms` };
+}
+
+function dustSvg(x, y, color = '#d9c7a0') {
+  return Array.from({ length: 8 }, (_, i) => {
+    const ang = Math.PI * (0.05 + 0.9 * i / 7);
+    const dx = (Math.cos(ang) * 22).toFixed(1), dy = (-Math.sin(ang) * 9 - 2).toFixed(1);
+    return `<circle class="dust" cx="${x}" cy="${y}" r="${3 + (i % 3)}" fill="${color}" style="--dx:${-dx}px;--dy:${dy}px"/>`;
+  }).join('');
+}
+
+function buildFxSvg(x, y, kind, color, vp) {
+  let fx = '';
+  if (kind === 'new') fx += dustSvg(x, y + 36);
+  if (kind === 'up') {
+    fx += `<circle class="ring" cx="${x}" cy="${y + 26}" r="22" fill="none" stroke="#ffd166" stroke-width="3"/>`;
+    fx += Array.from({ length: 6 }, (_, i) => {
+      const a = i / 6 * Math.PI * 2;
+      return `<path class="spark" d="M${x},${y + 22} l0,-5" stroke="#fff3b0" stroke-width="2" stroke-linecap="round"
+        style="--dx:${(Math.cos(a) * 26).toFixed(1)}px;--dy:${(Math.sin(a) * 18).toFixed(1)}px"/>`;
+    }).join('');
+  }
+  if (kind === 'lh') {
+    fx += dustSvg(x + 27, y + 28, '#cfd6dc');
+    fx += `<circle class="beam" cx="${x + 27}" cy="${y - 2}" r="16" fill="url(#g-glow)"/>`;
+  }
+  if (kind === 'port') {
+    fx += [0, 1, 2].map(i => `<ellipse class="ripple" cx="${x - 27}" cy="${y + 26}" rx="10" ry="3.5" fill="none"
+      stroke="#cfeaff" stroke-width="1.5" style="animation-delay:calc(var(--t) + ${i * 220}ms)"/>`).join('');
+  }
+  if (vp) {
+    const tx = kind === 'lh' ? x + 27 : kind === 'port' ? x - 27 : x;
+    const ty = kind === 'lh' || kind === 'port' ? y - 6 : y - 24;
+    fx += `<text class="floatvp" x="${tx}" y="${ty}" text-anchor="middle" font-size="16" font-weight="800"
+      fill="${color}" stroke="#0b1520" stroke-width="3.5" paint-order="stroke">+${vp}</text>`;
+  }
+  return fx;
+}
+
 function roadsSvg(pos) {
   const m = hexMap();
   const path = S.roadPath || [];
   const onPath = new Set(path.slice(1).map((k, i) => [path[i], k].sort().join('|')));
   let low = '', high = '';
+  const now = performance.now();
+  const edges = new Set();
   for (const h of S.hexes) {
     if (!h.building) continue;
     for (const [dq, dr] of DIRS) {
@@ -535,16 +606,22 @@ function roadsSvg(pos) {
       const [x2, y2] = pos(n);
       const c = pl(h.building.owner).color;
       const d = `M${x1},${y1 + 30} L${x2},${y2 + 30}`;
-      if (onPath.has([h.k, n.k].sort().join('|'))) {
-        high += `<path d="${d}" stroke="#ffe08a" stroke-width="11" stroke-linecap="round" opacity=".55"/>
+      const ek = [h.k, n.k].sort().join('|');
+      edges.add(ek);
+      if (edgeSnap && !edgeSnap.has(ek)) anims['e:' + ek] = { kind: 'road', t0: now };
+      const ea = animOf('e:' + ek);
+      const open = ea ? `<g class="anim road-new" style="${ea.style}">` : '<g>';
+      if (onPath.has(ek)) {
+        high += `${open}<path d="${d}" stroke="#ffe08a" stroke-width="11" stroke-linecap="round" opacity=".55"/>
           <path d="${d}" stroke="#2b1d0e" stroke-width="7" stroke-linecap="round"/>
-          <path d="${d}" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/>`;
+          <path d="${d}" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/></g>`;
       } else {
-        low += `<path d="${d}" stroke="#2b1d0e" stroke-width="5.5" stroke-linecap="round" opacity=".8"/>
-          <path d="${d}" stroke="${c}" stroke-width="3" stroke-linecap="round" stroke-dasharray="6 5"/>`;
+        low += `${open}<path d="${d}" stroke="#2b1d0e" stroke-width="5.5" stroke-linecap="round" opacity=".8"/>
+          <path d="${d}" stroke="${c}" stroke-width="3" stroke-linecap="round" stroke-dasharray="6 5"/></g>`;
       }
     }
   }
+  edgeSnap = edges;
   return low + high;
 }
 
@@ -569,7 +646,14 @@ function renderBoard() {
   svg.setAttribute('viewBox', `${minX} ${minY} ${Math.max(...xs) - minX + pad} ${Math.max(...ys) - minY + pad}`);
   const valid = validHexes();
   const lastNum = S.dice ? S.dice[0] : null;
-  let tiles = '', seaTiles = '', shore = '', pieces = '', marks = '', banditPiece = '';
+  let tiles = '', seaTiles = '', shore = '', pieces = '', marks = '', banditPiece = '', fxLayer = '';
+  trackBuildAnims();
+  const wrap = (key, svgStr, x, y, color, vp) => {
+    const a = animOf(key);
+    if (!a) return svgStr;
+    fxLayer += `<g class="anim" style="${a.style}">${buildFxSvg(x, y, a.kind, color, vp)}</g>`;
+    return `<g class="anim b-${a.kind}" style="${a.style}">${svgStr}</g>`;
+  };
   const banditMoved = lastBandits !== undefined && lastBandits !== S.bandits;
   lastBandits = S.bandits;
   for (const h of S.hexes) {
@@ -597,9 +681,9 @@ function renderBoard() {
     if (valid.has(h.k)) marks += `<polygon class="hl" points="${hexPts(x, y, R - 2)}"/>`;
     if (h.building) {
       const c = pl(h.building.owner).color;
-      pieces += h.building.type === 'camp' ? campSvg(x, y + 26, c) : townSvg(x, y + 26, c);
-      if (h.lighthouse) pieces += lighthouseSvg(x + 27, y + 12, c);
-      if (h.port) pieces += portSvg(x - 27, y + 14, c);
+      pieces += wrap(h.k + ':b', h.building.type === 'camp' ? campSvg(x, y + 26, c) : townSvg(x, y + 26, c), x, y, c, 1);
+      if (h.lighthouse) pieces += wrap(h.k + ':L', lighthouseSvg(x + 27, y + 12, c), x, y, c, 1);
+      if (h.port) pieces += wrap(h.k + ':P', portSvg(x - 27, y + 14, c), x, y, c, 1);
     }
     if (h.k === S.bandits) {
       marks = `<polygon points="${hexPts(x, y, R - 1)}" fill="#000" fill-opacity=".38"/>` + marks;
@@ -607,7 +691,7 @@ function renderBoard() {
     }
   }
   const vb = svg.viewBox.baseVal;
-  svg.innerHTML = TILE_DEFS + oceanSvg(vb.x, vb.y, vb.width, vb.height) + `<g>${seaTiles}</g><g class="shore">${shore}</g><g filter="url(#f-shadow)">${tiles}</g><g pointer-events="none">${marks}${roadsSvg(pos)}${pieces}${banditPiece}</g>`;
+  svg.innerHTML = TILE_DEFS + oceanSvg(vb.x, vb.y, vb.width, vb.height) + `<g>${seaTiles}</g><g class="shore">${shore}</g><g filter="url(#f-shadow)">${tiles}</g><g pointer-events="none">${marks}${roadsSvg(pos)}${pieces}${banditPiece}${fxLayer}</g>`;
   svg.querySelectorAll('.hex.valid').forEach(g => {
     g.onclick = () => {
       const k = g.dataset.k;
