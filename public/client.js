@@ -27,8 +27,9 @@ const TERRAIN = {
 const COSTS = {
   port: { drevo: 2, ruda: 1, obilie: 1 },
   bridge: { drevo: 2, kamen: 1 },
-  camp: { drevo: 1, kamen: 1, obilie: 1 },
-  town: { ruda: 2, obilie: 2, sol: 1 },
+  camp: { obilie: 1, sol: 1 },
+  road: { drevo: 1, kamen: 1 },
+  town: { ruda: 2, kamen: 2, obilie: 1 },
   lighthouse: { kamen: 2, drevo: 1, sol: 1 },
   explore: { drevo: 1, obilie: 1 },
 };
@@ -43,21 +44,22 @@ const RULES = `
 <p><b>Cieľ:</b> ako prvý dosiahni stanovený počet bodov (štandardne 12) počas svojho ťahu.</p>
 <ul>
 <li><b>Mapa:</b> šesťuholníkové súostrovie. Stred je odkrytý, vonkajší okruh je zahalený v hmle a treba ho objaviť.</li>
-<li><b>Príprava:</b> hráči postupne (tam a späť) položia 2 tábory na ľubovoľnú voľnú odkrytú pevninu. Za každý dostanú 1 surovinu z jej políčka.</li>
+<li><b>Príprava:</b> hráči postupne (tam a späť) položia 2 tábory na ľubovoľnú voľnú odkrytú pevninu a ku každému <b>cestu zadarmo</b>. Za každý tábor dostanú 1 surovinu z jeho poľa.</li>
 <li><b>Hod:</b> na začiatku ťahu hodíš dvoma klasickými kockami – bielou a fialovou – a čísla sa <b>sčítajú</b> (2–12).
   Každá stavba na poli so súčtom kociek dá majiteľovi surovinu (tábor 1, mesto 2). Polia majú čísla 2–12 okrem 7;
   bodky pod číslom ukazujú, ako často padá (6 a 8 najčastejšie, 2 a 12 najzriedkavejšie).</li>
 <li><b>Fialová kocka</b> navyše určuje udalosť: 1 = ťahá sa karta udalosti (Búrka, Hojnosť, Piráti, Obchodná loď, Sucho, Nález). 6 = Trhový deň – meníš s bankou 2:1.</li>
 <li><b>Stavby</b> zaberajú celé políčko (jedna stavba na políčko):
   <ul>
-  <li>⛺ <b>Tábor</b> (drevo, kameň, obilie) – 1 bod. Musí susediť s tvojou stavbou. Max. 6.</li>
-  <li>🏰 <b>Mesto</b> (2 ruda, 2 obilie, soľ) – vylepší tábor, 2 body a dvojitá produkcia. Max. 4.</li>
+  <li>🛤️ <b>Cesta</b> (drevo, kameň) – vedie medzi dvoma susednými poliami a musí nadväzovať na tvoju stavbu, most alebo cestu. Cez pole so súperovou stavbou neprejdeš a medzi dvoma poľami môže viesť len jedna cesta. Max. 15.</li>
+  <li>⛺ <b>Tábor</b> (obilie, soľ) – lacný, 1 bod. Stavia sa len na pole, <b>kam vedie tvoja cesta</b>. Max. 6.</li>
+  <li>🏰 <b>Mesto</b> (2 ruda, 2 kameň, obilie) – drahé, vylepší tábor: 2 body, dvojitá produkcia a navyše si <b>pripojí jedno susedné pole</b> – keď padne jeho číslo, dostaneš z neho 1 surovinu. Max. 4.</li>
   <li>🗼 <b>Maják</b> (2 kameň, drevo, soľ) – na pobrežnej stavbe, 1 bod, výmena s bankou 3:1 a ochrana pred pirátmi. Max. 3.</li>
   </ul></li>
 <li>🌉 <b>Most</b> (2 drevo, kameň) – staviaš ho na odkryté <b>morské pole</b> vedľa svojej stavby alebo mosta. Od mosta môžeš stavať tábory a robiť výpravy na druhom brehu a most je súčasťou tvojej <b>cesty</b>. Body nedáva. Max. 4.</li>
 <li>⚓ <b>Prístav</b> (2 drevo, ruda, obilie) – na pobrežnej stavbe, 1 bod. Max. 2. S bankou meníš <b>2:1 surovinu poľa, na ktorom prístav stojí</b>. Hráči s prístavom si môžu posielať <b>námorné ponuky kedykoľvek</b>, aj mimo svojho ťahu. Ponuka platí jedno celé kolo a prijať ju môže len hráč s prístavom.</li>
 <li>⚔️ <b>Vojaci</b> (ruda, obilie): kto má najviac vojakov (aspoň 3), má <b>Najväčšie vojsko</b> a <b>+2 body</b>. Titul prevezme len hráč s väčším vojskom. Aspoň 2 vojaci chránia pred pirátmi. S aspoň 1 vojakom môžeš raz za ťah <b>vyhnať banditov</b> zo svojho poľa späť do hôr. Tvoji vojaci stoja ako posádka pri tvojej hlavnej stavbe (meste, inak tábore).</li>
-<li>🛤️ <b>Najdlhšia cesta</b>: tvoje stavby na susedných poliach tvoria cestu. Kto má najdlhšiu reťaz stavieb za sebou (aspoň 4), získa <b>+2 body</b>. Titul prevezme len hráč s dlhšou cestou.</li>
+<li>🛤️ <b>Najdlhšia cesta</b>: kto má najviac svojich ciest za sebou (aspoň 5), získa <b>+2 body</b>. Súperova stavba tvoju cestu preruší. Titul prevezme len hráč s dlhšou cestou.</li>
 <li>🎴 <b>Rozvojové karty</b> (obilie, ruda, soľ): kúpiš náhodnú kartu z balíčka. Zahrať ju môžeš po hode, najskôr v ďalšom ťahu, a len jednu za ťah. Karty: 🗺️ Mapa pokladu, 🛒 Kupec, 🌾 Bohatá úroda, 🔨 Stavitelia, 🏴‍☠️ Pašeráci, 📜 Kráľovská listina, 🧭 Lodný kompas.</li>
 <li>🧭 <b>Výprava</b> (drevo, obilie): odkry zahalené políčko vedľa svojej stavby. Ak je to pevnina, dostaneš 1 jej surovinu. Kto má najviac objavov (aspoň 3), je <b>Veľký objaviteľ</b> (+2 body).</li>
 <li>🦹 <b>Banditi</b> začínajú v horách (na baníckom poli). Keď je súčet oboch kociek <b>7</b>, hráč na ťahu ich môže presunúť na ľubovoľnú odkrytú pevninu (alebo nechať na mieste). Pole s banditmi nič neprodukuje.</li>
@@ -343,7 +345,11 @@ function renderStatus() {
   if (S.phase === 'ended') {
     txt = `🏆 Vyhral(a) ${esc(pl(S.winner).name)}!`;
   } else if (S.phase === 'setup') {
-    txt = myTurn() ? `Príprava (kolo ${S.setupRound}/2): klikni na voľnú pevninu a polož tábor.` : `Príprava: ${esc(cur.name)} kladie tábor…`;
+    const roadStep = S.setupStage === 'road';
+    txt = myTurn()
+      ? (roadStep ? `Príprava (kolo ${S.setupRound}/2): polož <b>cestu zadarmo</b> od nového tábora – ťukni na značku ➕.`
+        : `Príprava (kolo ${S.setupRound}/2): klikni na voľnú pevninu a polož tábor.`)
+      : `Príprava: ${esc(cur.name)} kladie ${roadStep ? 'cestu' : 'tábor'}…`;
   } else {
     const dice = S.dice ? ` · 🎲 ${DIE[S.dice[0]]} ${S.dice[0]} + ${DIE[S.dice[1]]} ${S.dice[1]} = <b>${S.dice[0] + S.dice[1]}</b>` : '';
     txt = (myTurn() ? (S.rolled ? 'Tvoj ťah' : 'Tvoj ťah – hoď kockami!') : `Na ťahu: ${esc(cur.name)}`) + dice
@@ -368,7 +374,8 @@ function modeName(m) {
     const d = c && cardDef(c.type);
     return d ? d.name : 'karta';
   }
-  return { place: 'tábor', camp: 'tábor', town: 'mesto', lighthouse: 'maják', port: 'prístav', bridge: 'most', explore: 'výprava' }[m];
+  if (m && m.startsWith('annex:')) return 'pole, ktoré mesto pripojí';
+  return { road: 'cesta', place: 'tábor', camp: 'tábor', town: 'mesto', lighthouse: 'maják', port: 'prístav', bridge: 'most', explore: 'výprava' }[m];
 }
 
 function hexMap() {
@@ -377,19 +384,63 @@ function hexMap() {
   return m;
 }
 
+// moje cesty: ktorých polí sa dotýkajú a ktoré hrany sú obsadené
+function roadIndex() {
+  const touch = new Set(), taken = new Set();
+  for (const r of S.roads || []) {
+    taken.add([r.a, r.b].sort().join('|'));
+    if (r.owner === S.me) { touch.add(r.a); touch.add(r.b); }
+  }
+  return { touch, taken };
+}
+const inNet = (h, road) => (h.building && h.building.owner === S.me) || h.bridge === S.me || road.touch.has(h.k);
+
+// hrany, kde môžem postaviť cestu (zrkadlí pravidlá servera)
+function validEdges() {
+  if (!myTurn()) return [];
+  const setupRoad = S.phase === 'setup' && S.setupStage === 'road';
+  if (!setupRoad && !(S.phase === 'play' && mode === 'road' && !S.pendingBandits)) return [];
+  const m = hexMap();
+  const road = roadIndex();
+  const passable = h => h.revealed && (h.terrain !== 'more' || h.bridge === S.me);
+  const foe = h => h.building && h.building.owner !== S.me;
+  const out = [];
+  const seen = new Set();
+  for (const a of S.hexes) {
+    if (setupRoad ? a.k !== S.setupFrom : !(inNet(a, road) && !foe(a))) continue;
+    if (!passable(a)) continue;
+    for (const [dq, dr] of DIRS) {
+      const b = m[(a.q + dq) + ',' + (a.r + dr)];
+      if (!b || !passable(b)) continue;
+      const ek = [a.k, b.k].sort().join('|');
+      if (road.taken.has(ek) || seen.has(ek)) continue;
+      seen.add(ek);
+      out.push([a, b]);
+    }
+  }
+  return out;
+}
+
 function validHexes() {
   if (!myTurn()) return new Set();
   const m = hexMap();
   const nbrs = h => DIRS.map(([a, b]) => m[(h.q + a) + ',' + (h.r + b)]).filter(Boolean);
   const own = h => h.building && h.building.owner === S.me;
-  const adjOwn = h => nbrs(h).some(n => own(n) || n.bridge === S.me); // stavby aj mosty
+  const road = roadIndex();
+  const adjOwn = h => nbrs(h).some(n => inNet(n, road)); // stavby, mosty aj konce ciest
+  const byRoad = h => road.touch.has(h.k);               // sem vedie moja cesta
   const land = h => h.revealed && h.terrain !== 'more';
   const out = new Set();
-  const m2 = S.phase === 'setup' ? 'place' : S.pendingBandits ? 'bandits' : mode;
+  const m2 = S.phase === 'setup' ? (S.setupStage === 'road' ? 'none' : 'place') : S.pendingBandits ? 'bandits' : mode;
+  if (m2 && m2.startsWith('annex:')) {
+    const t = m[m2.slice(6)];
+    if (t) for (const n of nbrs(t)) if (land(n)) out.add(n.k);
+    return out;
+  }
   for (const h of S.hexes) {
     let ok = false;
     if (m2 === 'place') ok = land(h) && !h.building;
-    else if (m2 === 'camp') ok = land(h) && !h.building && adjOwn(h);
+    else if (m2 === 'camp') ok = land(h) && !h.building && byRoad(h);
     else if (m2 === 'town') ok = own(h) && h.building.type === 'camp';
     else if (m2 === 'lighthouse') ok = own(h) && !h.lighthouse && h.coastal;
     else if (m2 === 'bridge') ok = h.revealed && h.terrain === 'more' && !h.bridge && adjOwn(h);
@@ -398,7 +449,7 @@ function validHexes() {
       const c = (me().devCards || []).find(x => x.id === m2.slice(5));
       const t = c && cardDef(c.type).target;
       if (t === 'hidden') ok = !h.revealed;
-      else if (t === 'camp') ok = land(h) && !h.building && adjOwn(h);
+      else if (t === 'camp') ok = land(h) && !h.building && byRoad(h);
     }
     else if (m2 === 'explore') ok = !h.revealed && adjOwn(h);
     else if (m2 === 'bandits') ok = land(h) && h.k !== S.bandits;
@@ -826,34 +877,61 @@ function roadsSvg(pos) {
   let low = '', high = '';
   const now = performance.now();
   const edges = new Set();
-  const owner = h => (h.building ? h.building.owner : h.bridge || null);
-  for (const h of S.hexes) {
-    if (!owner(h)) continue;
-    for (const [dq, dr] of DIRS) {
-      const n = m[(h.q + dq) + ',' + (h.r + dr)];
-      if (!n || owner(n) !== owner(h) || n.k < h.k) continue;
-      const [x1, y1] = pos(h);
-      const [x2, y2] = pos(n);
-      const c = pl(owner(h)).color;
-      // pri moste vedie cesta do jeho stredu (mostovka ju prekryje)
-      const d = `M${x1},${y1 + (h.building ? 30 : 0)} L${x2},${y2 + (n.building ? 30 : 0)}`;
-      const ek = [h.k, n.k].sort().join('|');
-      edges.add(ek);
-      if (edgeSnap && !edgeSnap.has(ek)) anims['e:' + ek] = { kind: 'road', t0: now };
-      const ea = animOf('e:' + ek);
-      const open = ea ? `<g class="anim road-new" style="${ea.style}">` : '<g>';
-      if (onPath.has(ek)) {
-        high += `${open}<path d="${d}" stroke="#ffe08a" stroke-width="11" stroke-linecap="round" opacity=".55"/>
-          <path d="${d}" stroke="#2b1d0e" stroke-width="7" stroke-linecap="round"/>
-          <path d="${d}" stroke="${c}" stroke-width="4.5" stroke-linecap="round"/></g>`;
-      } else {
-        low += `${open}<path d="${d}" stroke="#2b1d0e" stroke-width="5.5" stroke-linecap="round" opacity=".8"/>
-          <path d="${d}" stroke="${c}" stroke-width="3" stroke-linecap="round" stroke-dasharray="6 5"/></g>`;
-      }
+  for (const r of S.roads || []) {
+    const h = m[r.a], n = m[r.b];
+    const owner = pl(r.owner);
+    if (!h || !n || !owner) continue;
+    const [x1, y1] = pos(h);
+    const [x2, y2] = pos(n);
+    // chodník cez spoločnú hranu polí (mimo žetónov s číslami)
+    const ax = x1 + (x2 - x1) * 0.24, ay = y1 + (y2 - y1) * 0.24;
+    const bx = x1 + (x2 - x1) * 0.76, by = y1 + (y2 - y1) * 0.76;
+    const d = `M${ax.toFixed(1)},${ay.toFixed(1)} L${bx.toFixed(1)},${by.toFixed(1)}`;
+    const ek = [r.a, r.b].sort().join('|');
+    edges.add(ek);
+    if (edgeSnap && !edgeSnap.has(ek)) anims['e:' + ek] = { kind: 'road', t0: now };
+    const ea = animOf('e:' + ek);
+    const open = ea ? `<g class="anim road-new" style="${ea.style}">` : '<g>';
+    const c = owner.color;
+    const body = `<path d="${d}" stroke="#1b1006" stroke-width="10.5" stroke-linecap="round" opacity=".55" transform="translate(1.2,2)"/>
+      <path d="${d}" stroke="${c}" stroke-width="9.5" stroke-linecap="round"/>
+      <path d="${d}" stroke="#7a5532" stroke-width="6.6" stroke-linecap="round"/>
+      <path d="${d}" stroke="#a87d4f" stroke-width="3.4" stroke-linecap="round" stroke-dasharray="2.2 3.1" opacity=".9"/>`;
+    if (onPath.has(ek)) {
+      high += `${open}<path d="${d}" stroke="#ffe08a" stroke-width="15" stroke-linecap="round" opacity=".5"/>${body}</g>`;
+    } else {
+      low += `${open}${body}</g>`;
     }
   }
+  // vlajky na poliach pripojených k mestám
+  let flags = '';
+  for (const h of S.hexes) {
+    const ak = h.building && h.building.type === 'town' && h.building.annex;
+    const a = ak && m[ak];
+    if (!a) continue;
+    const [tx, ty] = pos(h), [x, y] = pos(a);
+    const fx = x + (tx - x) * 0.42, fy = y + (ty - y) * 0.42 - 6;
+    const c = pl(h.building.owner).color;
+    flags += `<g transform="translate(${fx.toFixed(1)},${fy.toFixed(1)})">
+      <ellipse cx="1.5" cy="9" rx="5" ry="1.6" fill="#0007"/>
+      <path d="M0,9 V-9" stroke="#3b2a1a" stroke-width="1.3"/>
+      <path d="M0,-9 C4,-10 7,-6.5 11,-7.5 L10,-1.5 C6.5,-0.8 4,-3.6 0,-2.6Z" fill="${c}" stroke="#0006" stroke-width=".6"/>
+      <text x="5.4" y="-3.4" text-anchor="middle" font-size="4.6">🏰</text></g>`;
+  }
   edgeSnap = edges;
-  return low + high;
+  return low + high + flags;
+}
+
+// značky ➕ na hranách, kde sa dá postaviť cesta
+function edgeMarksSvg(pos) {
+  let out = '';
+  for (const [a, b] of validEdges()) {
+    const [x1, y1] = pos(a), [x2, y2] = pos(b);
+    const x = (x1 + x2) / 2, y = (y1 + y2) / 2;
+    out += `<g class="emark" data-a="${a.k}" data-b="${b.k}"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9"/>
+      <path d="M${(x - 4).toFixed(1)},${y.toFixed(1)} h8 M${x.toFixed(1)},${(y - 4).toFixed(1)} v8"/></g>`;
+  }
+  return out;
 }
 
 // Oceán okolo ostrova s pomaly sa pohybujúcimi vlnami
@@ -1015,11 +1093,25 @@ function renderBoard() {
   const vb = svg.viewBox.baseVal;
   const cloudShadows = TEXTURES && TEXTURES.cshadow ? `<g clip-path="url(#oceanclip)" pointer-events="none">
     <rect class="cshadow" x="${vb.x - 320}" y="${vb.y - 320}" width="${vb.width + 640}" height="${vb.height + 640}" fill="url(#tx-cshadow)"/></g>` : '';
-  svg.innerHTML = TILE_DEFS + oceanSvg(vb.x, vb.y, vb.width, vb.height) + `<g>${seaTiles}</g><g class="shore">${shore}</g><g filter="url(#f-shadow)">${tiles}</g>${cloudShadows}<g pointer-events="none">${marks}${roadsSvg(pos)}${bridges}${pieces}${garrisonSvg(pos)}${banditPiece}${fxLayer}</g>`;
+  svg.innerHTML = TILE_DEFS + oceanSvg(vb.x, vb.y, vb.width, vb.height) + `<g>${seaTiles}</g><g class="shore">${shore}</g><g filter="url(#f-shadow)">${tiles}</g>${cloudShadows}<g pointer-events="none">${marks}${roadsSvg(pos)}${bridges}${pieces}${garrisonSvg(pos)}${banditPiece}${fxLayer}</g><g class="emarks">${edgeMarksSvg(pos)}</g>`;
   runPendingFx(pos);
+  svg.querySelectorAll('.emark').forEach(g => {
+    g.onclick = () => { act({ type: 'road', a: g.dataset.a, b: g.dataset.b }); if (S.phase !== 'setup') mode = null; };
+  });
   svg.querySelectorAll('.hex.valid').forEach(g => {
     g.onclick = () => {
       const k = g.dataset.k;
+      if (mode === 'town') {
+        // mesto: najprv tábor, potom pole na pripojenie
+        const t = S.hexes.find(x => x.k === k);
+        const opts = DIRS.map(([dq, dr]) => S.hexes.find(x => x.q === t.q + dq && x.r === t.r + dr))
+          .filter(x => x && x.revealed && x.terrain !== 'more');
+        if (opts.length > 1) { mode = 'annex:' + k; render(); return; }
+        act({ type: 'build', kind: 'town', hex: k, annex: opts[0] ? opts[0].k : null });
+        mode = null;
+        return;
+      }
+      if (mode && mode.startsWith('annex:')) { act({ type: 'build', kind: 'town', hex: mode.slice(6), annex: k }); mode = null; return; }
       if (S.phase === 'setup') act({ type: 'place', hex: k });
       else if (S.pendingBandits) act({ type: 'moveBandits', hex: k });
       else if (mode && mode.startsWith('card:')) act({ type: 'playCard', id: mode.slice(5), hex: k });
@@ -1397,6 +1489,7 @@ function renderActions() {
   const m = me();
   p.innerHTML = `<h3>Akcie</h3><div class="btns">
     ${!S.rolled ? '<button id="btnRoll" class="primary wide">🎲 Hodiť kockami</button>' : ''}
+    <button data-mode="road" ${dis(COSTS.road, (m.roads || 0) >= 15)} class="${mode === 'road' ? 'active' : ''}">🛤️ Cesta<small>${costStr(COSTS.road)}</small></button>
     <button data-mode="camp" ${dis(COSTS.camp, m.camps >= 6)} class="${mode === 'camp' ? 'active' : ''}">⛺ Tábor<small>${costStr(COSTS.camp)}</small></button>
     <button data-mode="town" ${dis(COSTS.town, m.towns >= 4 || !m.camps)} class="${mode === 'town' ? 'active' : ''}">🏰 Mesto<small>${costStr(COSTS.town)}</small></button>
     <button data-mode="lighthouse" ${dis(COSTS.lighthouse, m.lighthouses >= 3)} class="${mode === 'lighthouse' ? 'active' : ''}">🗼 Maják<small>${costStr(COSTS.lighthouse)}</small></button>
@@ -1417,7 +1510,7 @@ function renderActions() {
   p.querySelectorAll('[data-mode]').forEach(b => {
     b.onclick = () => {
       mode = mode === b.dataset.mode ? null : b.dataset.mode;
-      if (mode && !validHexes().size) { toast('Nie je kde to postaviť.'); mode = null; }
+      if (mode && !(mode === 'road' ? validEdges().length : validHexes().size)) { toast('Nie je kde to postaviť.'); mode = null; }
       render();
     };
   });

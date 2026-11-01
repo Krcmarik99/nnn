@@ -73,12 +73,6 @@ function spotScore(g, p, h) {
     // ťažký bot počíta aj s tým, koľko jeho stavieb už má rovnaké číslo/surovinu
     s += mine.filter(x => x.num === h.num).length * -0.6;
     if (g.bandits && g.hexes[g.bandits] === h) s -= 3; // pole s banditmi nič nevyprodukuje
-    // predĺženie najdlhšej cesty
-    if (g.phase === 'play' && g.longestPath) {
-      const cur = g.longestPath(p.id).length;
-      const next = g.longestPath(p.id, h.q + ',' + h.r).length;
-      if (next > cur) s += next >= 3 ? 1.2 : 0.5;
-    }
   }
   return s + Math.random() * lv(p).noise;
 }
@@ -90,19 +84,23 @@ function options(g, p) {
   const towns = g.count(p.id, 'town');
   const lights = g.count(p.id, 'lighthouse');
 
-  const spots = camps < LIMITS.camp
-    ? entries(g).filter(([, h]) => h.revealed && g.isLand(h) && !h.building && g.adjacentToOwn(h, p.id))
-    : [];
+  const spots = camps < LIMITS.camp ? entries(g).filter(([, h]) => g.campAllowed(h, p.id)) : [];
   if (spots.length) {
     const [k] = best(spots, ([, h]) => spotScore(g, p, h));
     opts.push({ action: { type: 'build', kind: 'camp', hex: k }, cost: COSTS.camp, pri: 0 });
+  }
+  // cesta: k voľnému poľu pre ďalší tábor (alebo predĺženie najdlhšej cesty)
+  const roadCount = (g.roads ? Object.values(g.roads) : []).filter(o => o === p.id).length;
+  if (roadCount < LIMITS.road && (spots.length < 2 || (lv(p).valueAware && g.roadLength(p.id) >= 3))) {
+    const r = bestRoad(g, p);
+    if (r) opts.push({ action: { type: 'road', a: r[0], b: r[1] }, cost: COSTS.road, pri: !spots.length ? 0.1 : spots.length < 2 ? 0.8 : 1.5 });
   }
   if (towns < LIMITS.town) {
     const mine = entries(g).filter(([, h]) => own(h, p) && h.building.type === 'camp');
     if (mine.length) {
       // mesto tam, kde produkuje surovinu, ktorej má najmenej
       const [k] = lv(p).valueAware ? best(mine, ([key, h]) => -p.res[TERRAIN_RES[h.terrain]] - (key === g.bandits ? 10 : 0)) : mine[0];
-      opts.push({ action: { type: 'build', kind: 'town', hex: k }, cost: COSTS.town, pri: lv(p).valueAware ? -0.4 : 0 });
+      opts.push({ action: { type: 'build', kind: 'town', hex: k, annex: bestAnnexFor(g, p, g.hexes[k]) }, cost: COSTS.town, pri: lv(p).valueAware ? -0.4 : 0 });
     }
   }
   for (const id of g.openContracts) {
@@ -202,7 +200,7 @@ function cardPlay(g, p) {
         return play(c);
       case 'stavitelia': {
         if (g.count(p.id, 'camp') >= LIMITS.camp) break;
-        const spots = entries(g).filter(([, h]) => h.revealed && g.isLand(h) && !h.building && g.adjacentToOwn(h, p.id));
+        const spots = entries(g).filter(([, h]) => g.campAllowed(h, p.id));
         if (spots.length) return play(c, best(spots, ([, h]) => spotScore(g, p, h))[0]);
         break;
       }
@@ -234,7 +232,38 @@ function goal(g, p) {
   return best(options(g, p), o => -(missing(p.res, o.cost) + o.pri));
 }
 
+// Najlepšia cesta zo siete hráča: k voľnej pevnine, kde sa dá postaviť tábor
+function bestRoad(g, p, from = null) {
+  const cands = [];
+  const sources = from ? [from] : Object.keys(g.hexes).filter(k => g.inNetwork(k, p.id));
+  for (const a of sources) {
+    for (const n of g.neighbors(g.hexes[a])) {
+      const b = n.q + ',' + n.r;
+      if (g.roadError(p.id, a, b, from)) continue;
+      let v = 0.2;
+      if (n.revealed && g.isLand(n) && !n.building && !g.touchedByRoad(b, p.id)) v = 1 + spotScore(g, p, n);
+      else if (n.building && n.building.owner !== p.id) v = -1;
+      v += g.neighbors(n).filter(x => !x.revealed).length * 0.15; // výhľad na objavovanie
+      cands.push([[a, b], v]);
+    }
+  }
+  if (!cands.length) return null;
+  return best(cands, ([, v]) => v + Math.random() * 0.2)[0];
+}
+
+// pole, ktoré si mesto pripojí: časté číslo a surovina, ktorej má bot málo
+function bestAnnexFor(g, p, h) {
+  const opts = g.annexOptions(h);
+  if (!opts.length) return null;
+  const ways = k => 6 - Math.abs(7 - (g.hexes[k].num || 7));
+  return best(opts, k => ways(k) - (lv(p).valueAware ? p.res[TERRAIN_RES[g.hexes[k].terrain]] * 0.3 : 0) + Math.random() * 0.1);
+}
+
 function decide(g, p, mem) {
+  if (g.phase === 'setup' && g.setupStage === 'road') {
+    const r = bestRoad(g, p, g.setupFrom);
+    if (r) return { type: 'road', a: r[0], b: r[1] };
+  }
   if (g.phase === 'setup') {
     const free = entries(g).filter(([, h]) => h.revealed && g.isLand(h) && !h.building);
     return { type: 'place', hex: best(free, ([, h]) => spotScore(g, p, h))[0] };

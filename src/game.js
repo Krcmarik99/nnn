@@ -8,21 +8,22 @@ const TERRAIN_RES = { les: 'drevo', lom: 'kamen', bana: 'ruda', pole: 'obilie', 
 const LAND = Object.keys(TERRAIN_RES);
 
 const COSTS = {
-  camp: { drevo: 1, kamen: 1, obilie: 1 },
-  town: { ruda: 2, obilie: 2, sol: 1 },
+  camp: { obilie: 1, sol: 1 },                // lacný tábor
+  town: { ruda: 2, kamen: 2, obilie: 1 },      // drahé mesto
+  road: { drevo: 1, kamen: 1 },
   lighthouse: { kamen: 2, drevo: 1, sol: 1 },
   port: { drevo: 2, ruda: 1, obilie: 1 },
   bridge: { drevo: 2, kamen: 1 },
   explore: { drevo: 1, obilie: 1 },
 };
-const LIMITS = { camp: 6, town: 4, lighthouse: 3, port: 2, bridge: 4 };
+const LIMITS = { camp: 6, town: 4, lighthouse: 3, port: 2, bridge: 4, road: 15 };
 const COLORS = ['#e4572e', '#2e86de', '#f2c14e', '#3bb273', '#9b5de5'];
 const MAX_PLAYERS = 5;
 const MAP_RADIUS = 3;
 const STORM_LIMIT = 8;
 const EXPLORER_MIN = 3;
 const EXPLORER_VP = 2;
-const ROAD_MIN = 4;   // najdlhšia cesta: aspoň 4 stavby za sebou
+const ROAD_MIN = 5;   // najdlhšia cesta: aspoň 5 ciest za sebou
 const ROAD_VP = 2;
 const SOLDIER_COST = { ruda: 1, obilie: 1 };
 const SOLDIER_MAX = 10;
@@ -88,6 +89,7 @@ const CONTRACTS = [
 class GameError extends Error {}
 
 const key = (q, r) => q + ',' + r;
+const edgeKey = (a, b) => (a < b ? a + '|' + b : b + '|' + a);
 const dist = (q, r) => Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r));
 
 function shuffle(arr, rng) {
@@ -193,6 +195,9 @@ class Game {
     const n = this.players.length;
     this.setupOrder = [...Array(n).keys(), ...[...Array(n).keys()].reverse()];
     this.setupIndex = 0;
+    this.setupStage = 'camp';   // príprava: tábor → cesta zadarmo
+    this.setupFrom = null;
+    this.roads = {};            // 'a|b' (kľúče susedných polí) → id hráča
     this.phase = 'setup';
     this.turn = 0;
     this.round = 1;
@@ -230,6 +235,18 @@ class Game {
   static restore(data, opts = {}) {
     const g = new Game(opts);
     Object.assign(g, data);
+    // hry uložené pred zavedením ciest: cesty medzi susednými vlastnými stavbami/mostami
+    if (g.hexes && g.phase !== 'lobby' && !g.roads) {
+      g.roads = {};
+      for (const k in g.hexes) {
+        const h = g.hexes[k];
+        for (const n of g.neighbors(h)) {
+          const nk = key(n.q, n.r);
+          for (const pl of g.players) if (g.ownsNode(h, pl.id) && g.ownsNode(n, pl.id)) g.roads[edgeKey(k, nk)] = pl.id;
+        }
+      }
+      g.setupStage = g.setupStage || 'camp';
+    }
     // hry uložené pred zmenou na súčet dvoch kociek mali na poliach čísla 1–6
     if (g.hexes && !g.numbersV2) {
       const land = Object.values(g.hexes).filter(h => h.terrain !== 'more' && h.num != null);
@@ -277,8 +294,48 @@ class Game {
     return (h.building && h.building.owner === pid) || h.bridge === pid;
   }
 
+  // pole je súčasťou siete hráča: jeho stavba, most alebo koniec jeho cesty
+  inNetwork(k, pid) {
+    const h = this.hexes[k];
+    return !!h && (this.ownsNode(h, pid) || this.touchedByRoad(k, pid));
+  }
+
+  touchedByRoad(k, pid) {
+    for (const e in this.roads || {}) {
+      if (this.roads[e] !== pid) continue;
+      const [a, b] = e.split('|');
+      if (a === k || b === k) return true;
+    }
+    return false;
+  }
+
+  // sused siete (objavovanie, mosty)
   adjacentToOwn(h, pid) {
-    return this.neighbors(h).some(n => this.ownsNode(n, pid));
+    return this.neighbors(h).some(n => this.inNetwork(key(n.q, n.r), pid));
+  }
+
+  // tábor sa dá postaviť len na pole, kam vedie vlastná cesta
+  campAllowed(h, pid) {
+    return h.revealed && this.isLand(h) && !h.building && this.touchedByRoad(key(h.q, h.r), pid);
+  }
+
+  // Overí, či môže hráč postaviť cestu medzi poliami a, b (vráti text chyby alebo null)
+  roadError(pid, a, b, from = null) {
+    const ha = this.hexes[a], hb = this.hexes[b];
+    if (!ha || !hb || a === b) return 'Neplatná cesta.';
+    if (!this.neighbors(ha).includes(hb)) return 'Cesta musí spájať dve susedné polia.';
+    if ((this.roads || {})[edgeKey(a, b)]) return 'Tu už cesta vedie.';
+    const passable = h => h.revealed && (this.isLand(h) || h.bridge === pid);
+    if (!passable(ha) || !passable(hb)) return 'Cesta vedie len po odkrytej pevnine (alebo k tvojmu mostu).';
+    const foe = h => h.building && h.building.owner !== pid;
+    const starts = from ? [from] : [a, b].filter(k => this.inNetwork(k, pid) && !foe(this.hexes[k]));
+    if (from && from !== a && from !== b) return 'Cesta musí vychádzať z tvojho nového tábora.';
+    if (!starts.length) return 'Cesta musí nadväzovať na tvoju stavbu, most alebo cestu (nie cez súperovu stavbu).';
+    return null;
+  }
+
+  roadLength(pid) {
+    return Math.max(0, this.longestPath(pid).length - 1);
   }
 
   isCoastal(h) {
@@ -358,43 +415,49 @@ class Game {
     return Object.fromEntries(RES.map(r => [r, this.bankRate(p, r)]));
   }
 
-  // Najdlhšia reťaz vlastných stavieb na susedných poliach (bez opakovania poľa)
-  longestPath(pid, extraKey = null) {
-    const mine = new Set(Object.keys(this.hexes).filter(k => {
-      const h = this.hexes[k];
-      return this.ownsNode(h, pid); // stavby aj mosty
-    }));
-    if (extraKey) mine.add(extraKey);
+  // Najdlhší ťah po vlastných cestách (každá cesta raz; súperova stavba ťah preruší).
+  // Vráti zoznam polí po ceste.
+  longestPath(pid) {
     const adj = {};
-    for (const k of mine) {
-      adj[k] = this.neighbors(this.hexes[k]).map(n => key(n.q, n.r)).filter(n => mine.has(n));
+    for (const e in this.roads || {}) {
+      if (this.roads[e] !== pid) continue;
+      const [a, b] = e.split('|');
+      (adj[a] ||= []).push(b);
+      (adj[b] ||= []).push(a);
     }
+    const blocked = k => { const h = this.hexes[k]; return h && h.building && h.building.owner !== pid; };
     let best = [];
     const path = [];
-    const seen = new Set();
+    const used = new Set();
     const dfs = k => {
-      seen.add(k);
       path.push(k);
       if (path.length > best.length) best = path.slice();
-      for (const n of adj[k]) if (!seen.has(n)) dfs(n);
+      if (!(path.length > 1 && blocked(k))) {
+        for (const n of adj[k] || []) {
+          const e = edgeKey(k, n);
+          if (used.has(e)) continue;
+          used.add(e);
+          dfs(n);
+          used.delete(e);
+        }
+      }
       path.pop();
-      seen.delete(k);
     };
-    for (const k of mine) dfs(k);
+    for (const k in adj) dfs(k);
     return best;
   }
 
   updateRoad() {
     const holder = this.roadHolder ? this.player(this.roadHolder) : null;
     let bestP = holder;
-    let bestLen = holder ? this.longestPath(holder.id).length : 0;
+    let bestLen = holder ? this.roadLength(holder.id) : 0;
     for (const p of this.players) {
-      const len = this.longestPath(p.id).length;
+      const len = this.roadLength(p.id);
       if (len >= ROAD_MIN && len > bestLen) { bestP = p; bestLen = len; }
     }
     if (bestP && bestLen >= ROAD_MIN && bestP.id !== this.roadHolder) {
       this.roadHolder = bestP.id;
-      this.addLog(`🛤️ ${bestP.name} získava Najdlhšiu cestu – ${bestLen} stavby za sebou (+${ROAD_VP} body).`);
+      this.addLog(`🛤️ ${bestP.name} získava Najdlhšiu cestu – ${bestLen} ciest za sebou (+${ROAD_VP} body).`);
     }
   }
 
@@ -476,6 +539,10 @@ class Game {
     if (this.current() !== p) throw new GameError('Nie si na ťahu.');
 
     if (this.phase === 'setup') {
+      if ((this.setupStage || 'camp') === 'road') {
+        if (a.type !== 'road') throw new GameError('Polož cestu od svojho tábora.');
+        return this.setupRoad(p, a.a, a.b);
+      }
       if (a.type !== 'place') throw new GameError('Najprv polož tábor.');
       return this.setupPlace(p, a.hex);
     }
@@ -484,7 +551,8 @@ class Game {
     if (a.type === 'moveBandits') return this.moveBandits(p, a.hex);
     if (this.pendingBandits) throw new GameError('Najprv presuň banditov (alebo ich nechaj na mieste).');
     switch (a.type) {
-      case 'build': return this.build(p, a.kind, a.hex);
+      case 'build': return this.build(p, a.kind, a.hex, a.annex);
+      case 'road': return this.buildRoad(p, a.a, a.b);
       case 'explore': return this.explore(p, a.hex);
       case 'bankTrade': return this.bankTrade(p, a.give, a.get);
       case 'offer': return this.makeOffer(p, a.give, a.want);
@@ -507,12 +575,39 @@ class Game {
     const r = TERRAIN_RES[h.terrain];
     this.gain(p, r);
     this.addLog(`${p.name} postavil(a) tábor a dostáva 1× ${RES_NAMES[r]}.`);
+    this.setupStage = 'road';
+    this.setupFrom = k;
+    // ak niet kam položiť cestu, príprava pokračuje bez nej
+    if (!this.neighbors(h).some(n => !this.roadError(p.id, k, key(n.q, n.r), k))) this.finishSetupStep();
+  }
+
+  setupRoad(p, a, b) {
+    const err = this.roadError(p.id, a, b, this.setupFrom);
+    if (err) throw new GameError(err);
+    this.roads[edgeKey(a, b)] = p.id;
+    this.addLog(`🛤️ ${p.name} kladie cestu zadarmo.`);
+    this.finishSetupStep();
+  }
+
+  finishSetupStep() {
+    this.setupStage = 'camp';
+    this.setupFrom = null;
     this.setupIndex++;
     if (this.setupIndex >= this.setupOrder.length) {
       this.phase = 'play';
       this.turn = 0;
       this.addLog(`Príprava skončila. Na ťahu je ${this.players[0].name}.`);
     }
+  }
+
+  buildRoad(p, a, b) {
+    const err = this.roadError(p.id, a, b);
+    if (err) throw new GameError(err);
+    if (Object.values(this.roads).filter(o => o === p.id).length >= LIMITS.road) throw new GameError('Nemáš už voľné cesty.');
+    this.pay(p, COSTS.road);
+    this.roads[edgeKey(a, b)] = p.id;
+    this.addLog(`🛤️ ${p.name} stavia cestu.`);
+    this.checkWin();
   }
 
   roll(p) {
@@ -540,6 +635,17 @@ class Game {
       const r = TERRAIN_RES[h.terrain];
       this.gain(owner, r, n);
       (gains[owner.id] ||= emptyRes())[r] += n;
+    }
+    // mestá zbierajú aj z pripojeného susedného poľa
+    for (const k in this.hexes) {
+      const h = this.hexes[k];
+      const ak = h.building && h.building.type === 'town' && h.building.annex;
+      const ah = ak && this.hexes[ak];
+      if (!ah || ah.num !== prod || !ah.revealed || !this.isLand(ah) || ak === this.bandits) continue;
+      const owner = this.player(h.building.owner);
+      const r = TERRAIN_RES[ah.terrain];
+      this.gain(owner, r, 1);
+      (gains[owner.id] ||= emptyRes())[r] += 1;
     }
     for (const id in gains) this.addLog(`  ${this.player(id).name} dostáva ${fmtRes(gains[id])}.`);
     if (!Object.keys(gains).length) this.addLog('  Nikto nič nezískal.');
@@ -621,12 +727,24 @@ class Game {
     }
   }
 
-  build(p, kind, k) {
+  // susedné polia pevniny, ktoré si mesto môže pripojiť
+  annexOptions(h) {
+    return this.neighbors(h).filter(n => n.revealed && this.isLand(n)).map(n => key(n.q, n.r));
+  }
+
+  // najlepšie pole na pripojenie: najčastejšie číslo
+  bestAnnex(h) {
+    const opts = this.annexOptions(h);
+    const ways = k => 6 - Math.abs(7 - (this.hexes[k].num || 7));
+    return opts.sort((a, b) => ways(b) - ways(a))[0] || null;
+  }
+
+  build(p, kind, k, annex = null) {
     const h = this.hex(k);
     if (kind === 'camp') {
       if (!h.revealed || !this.isLand(h)) throw new GameError('Tábor musí stáť na odkrytej pevnine.');
       if (h.building) throw new GameError('Políčko je obsadené.');
-      if (!this.adjacentToOwn(h, p.id)) throw new GameError('Tábor musí susediť s tvojou stavbou.');
+      if (!this.touchedByRoad(k, p.id)) throw new GameError('Na toto pole nevedie tvoja cesta.');
       if (this.count(p.id, 'camp') >= LIMITS.camp) throw new GameError('Nemáš už voľné tábory.');
       this.pay(p, COSTS.camp);
       h.building = { owner: p.id, type: 'camp' };
@@ -634,9 +752,13 @@ class Game {
     } else if (kind === 'town') {
       if (!h.building || h.building.owner !== p.id || h.building.type !== 'camp') throw new GameError('Mesto sa stavia na mieste tvojho tábora.');
       if (this.count(p.id, 'town') >= LIMITS.town) throw new GameError('Nemáš už voľné mestá.');
+      const opts = this.annexOptions(h);
+      if (annex != null && !opts.includes(annex)) throw new GameError('Mesto si môže pripojiť len susedné pole pevniny.');
       this.pay(p, COSTS.town);
       h.building.type = 'town';
-      this.addLog(`${p.name} rozširuje tábor na mesto.`);
+      h.building.annex = annex != null ? annex : this.bestAnnex(h);
+      const ah = h.building.annex && this.hexes[h.building.annex];
+      this.addLog(`${p.name} rozširuje tábor na mesto${ah ? ` a pripája pole ${TERRAIN_NAMES[ah.terrain]} (${ah.num})` : ''}.`);
     } else if (kind === 'lighthouse') {
       if (!h.building || h.building.owner !== p.id) throw new GameError('Maják sa stavia pri tvojej stavbe.');
       if (h.lighthouse) throw new GameError('Tu už maják stojí.');
@@ -648,11 +770,8 @@ class Game {
     } else if (kind === 'bridge') {
       if (!h.revealed || this.isLand(h)) throw new GameError('Most sa stavia na odkryté morské pole.');
       if (h.bridge) throw new GameError('Tu už most stojí.');
-      const dir = DIRS.findIndex(([dq, dr]) => {
-        const n = this.hexes[key(h.q + dq, h.r + dr)];
-        return n && this.ownsNode(n, p.id);
-      });
-      if (dir < 0) throw new GameError('Most musí nadväzovať na tvoju stavbu alebo most.');
+      const dir = DIRS.findIndex(([dq, dr]) => this.inNetwork(key(h.q + dq, h.r + dr), p.id));
+      if (dir < 0) throw new GameError('Most musí nadväzovať na tvoju stavbu, most alebo cestu.');
       if (this.count(p.id, 'bridge') >= LIMITS.bridge) throw new GameError('Nemáš už voľné mosty.');
       this.pay(p, COSTS.bridge);
       h.bridge = p.id;
@@ -675,7 +794,7 @@ class Game {
   explore(p, k) {
     const h = this.hex(k);
     if (h.revealed) throw new GameError('Toto políčko je už objavené.');
-    if (!this.adjacentToOwn(h, p.id)) throw new GameError('Objavovať môžeš len vedľa svojej stavby.');
+    if (!this.adjacentToOwn(h, p.id)) throw new GameError('Objavovať môžeš len vedľa svojej stavby, mosta alebo cesty.');
     this.pay(p, COSTS.explore);
     h.revealed = true;
     p.discoveries++;
@@ -856,7 +975,7 @@ class Game {
         const h = this.hex(hexKey);
         if (!h.revealed || !this.isLand(h)) throw new GameError('Tábor musí stáť na odkrytej pevnine.');
         if (h.building) throw new GameError('Políčko je obsadené.');
-        if (!this.adjacentToOwn(h, p.id)) throw new GameError('Tábor musí susediť s tvojou stavbou.');
+        if (!this.touchedByRoad(hexKey, p.id)) throw new GameError('Na toto pole nevedie tvoja cesta.');
         if (this.count(p.id, 'camp') >= LIMITS.camp) throw new GameError('Nemáš už voľné tábory.');
         h.building = { owner: p.id, type: 'camp' };
         this.addLog(`${label} a stavia tábor zadarmo.`);
@@ -937,12 +1056,20 @@ class Game {
     const p = this.current();
     if (!p) throw new GameError('Hra neprebieha.');
     if (this.phase === 'setup') {
-      const free = Object.keys(this.hexes).filter(k => {
-        const h = this.hexes[k];
-        return h.revealed && this.isLand(h) && !h.building;
-      });
-      this.addLog(`${p.name} je odpojený(á) – tábor sa položí náhodne.`);
-      return this.setupPlace(p, free[Math.floor(this.rng() * free.length)]);
+      if ((this.setupStage || 'camp') === 'camp') {
+        const free = Object.keys(this.hexes).filter(k => {
+          const h = this.hexes[k];
+          return h.revealed && this.isLand(h) && !h.building;
+        });
+        this.addLog(`${p.name} je odpojený(á) – tábor sa položí náhodne.`);
+        this.setupPlace(p, free[Math.floor(this.rng() * free.length)]);
+      }
+      if (this.phase === 'setup' && this.setupStage === 'road') {
+        const from = this.setupFrom;
+        const n = this.neighbors(this.hexes[from]).map(x => key(x.q, x.r)).find(b => !this.roadError(p.id, from, b, from));
+        if (n) this.setupRoad(p, from, n); else this.finishSetupStep();
+      }
+      return;
     }
     this.addLog(`${p.name} je odpojený(á) – ťah sa preskakuje.`);
     if (!this.rolled) this.roll(p);
@@ -967,7 +1094,8 @@ class Game {
         vp: this.phase === 'lobby' ? 0 : this.vp(p),
         discoveries: p.discoveries,
         soldiers: p.soldiers || 0,
-        roadLen: this.phase === 'lobby' ? 0 : this.longestPath(p.id).length,
+        roadLen: this.phase === 'lobby' ? 0 : this.roadLength(p.id),
+        roads: Object.values(this.roads || {}).filter(o => o === p.id).length,
         contracts: p.contracts.slice(),
         devCount: (p.devCards || []).length,
         devCards: p.id === pid ? (p.devCards || []).map(c => ({ ...c, fresh: c.turnNo === (this.turnNo || 0) })) : null,
@@ -1001,6 +1129,9 @@ class Game {
       lastEvent: this.lastEvent,
       lastRoll: this.lastRoll || null,
       lastTrade: this.lastTrade || null,
+      roads: Object.entries(this.roads || {}).map(([e, owner]) => { const [a, b] = e.split('|'); return { a, b, owner }; }),
+      setupStage: this.phase === 'setup' ? (this.setupStage || 'camp') : null,
+      setupFrom: this.phase === 'setup' ? this.setupFrom || null : null,
       lastCard: this.lastCard || null,
       lastCardBuy: this.lastCardBuy || null,
       bandits: this.bandits || null,
@@ -1032,4 +1163,4 @@ class Game {
   }
 }
 
-module.exports = { Game, GameError, RES, COSTS, LIMITS, CONTRACTS, EVENTS, TERRAIN_RES, MAX_PLAYERS, STORM_LIMIT, BANDIT_SUM, NUMBER_POOL, ROAD_MIN, ARMY_MIN, SOLDIER_COST, SOLDIER_MAX, CARDS, CARD_COST, generateMap, key };
+module.exports = { Game, GameError, RES, COSTS, LIMITS, CONTRACTS, EVENTS, TERRAIN_RES, MAX_PLAYERS, STORM_LIMIT, BANDIT_SUM, NUMBER_POOL, edgeKey, ROAD_MIN, ARMY_MIN, SOLDIER_COST, SOLDIER_MAX, CARDS, CARD_COST, generateMap, key };

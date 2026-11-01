@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { Game, GameError, generateMap, RES, TERRAIN_RES, NUMBER_POOL } = require('../src/game');
+const { Game, GameError, generateMap, RES, TERRAIN_RES, NUMBER_POOL, edgeKey } = require('../src/game');
 
 function seeded(seed = 42) {
   return () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
@@ -18,6 +18,12 @@ function setupGame(n = 3) {
   const ids = Array.from({ length: n }, (_, i) => g.addPlayer('Hráč ' + i));
   g.start(12);
   while (g.phase === 'setup') {
+    if (g.setupStage === 'road') {
+      const from = g.setupFrom;
+      const to = g.neighbors(g.hexes[from]).map(n => n.q + ',' + n.r).find(b => !g.roadError(g.current().id, from, b, from));
+      g.act(g.current().id, { type: 'road', a: from, b: to });
+      continue;
+    }
     const free = Object.keys(g.hexes).filter(k => { const h = g.hexes[k]; return h.revealed && h.terrain !== 'more' && !h.building; });
     g.act(g.current().id, { type: 'place', hex: free[0] });
   }
@@ -59,26 +65,56 @@ test('nedá sa konať mimo ťahu a bez hodu', () => {
   assert.throws(() => g.act(g.current().id, { type: 'roll' }), GameError);
 });
 
-test('stavba tábora vyžaduje suseda a suroviny', () => {
+test('cesta, tábor a mesto s pripojeným poľom', () => {
   const { g } = setupGame(2);
   const p = g.current();
   roll(g, p);
-  RES.forEach(r => { p.res[r] = 5; });
-  const target = Object.keys(g.hexes).find(k => {
-    const h = g.hexes[k];
-    return h.revealed && h.terrain !== 'more' && !h.building && g.adjacentToOwn(h, p.id);
-  });
-  const far = Object.keys(g.hexes).find(k => {
-    const h = g.hexes[k];
-    return h.revealed && h.terrain !== 'more' && !h.building && !g.adjacentToOwn(h, p.id);
-  });
-  if (far) assert.throws(() => g.act(p.id, { type: 'build', kind: 'camp', hex: far }), /susediť/);
+  g.market = false;
+  RES.forEach(r => { p.res[r] = 6; });
+  // pole, kam ešte nevedie cesta, no dá sa k nemu postaviť
+  let road = null;
+  for (const a of Object.keys(g.hexes).filter(k => g.inNetwork(k, p.id))) {
+    for (const n of g.neighbors(g.hexes[a])) {
+      const b = n.q + ',' + n.r;
+      if (n.revealed && n.terrain !== 'more' && !n.building && !g.touchedByRoad(b, p.id) && !g.roadError(p.id, a, b)) { road = [a, b]; break; }
+    }
+    if (road) break;
+  }
+  assert.ok(road, 'existuje miesto na cestu');
+  const [, target] = road;
+  assert.throws(() => g.act(p.id, { type: 'build', kind: 'camp', hex: target }), /nevedie tvoja cesta/);
+  g.act(p.id, { type: 'road', a: road[0], b: road[1] });
+  assert.deepStrictEqual([p.res.drevo, p.res.kamen], [5, 5], 'cesta stojí drevo a kameň');
+  assert.throws(() => g.act(p.id, { type: 'road', a: road[0], b: road[1] }), /už cesta/);
   g.act(p.id, { type: 'build', kind: 'camp', hex: target });
   assert.strictEqual(g.count(p.id, 'camp'), 3);
-  assert.strictEqual(p.res.drevo, 4);
-  g.act(p.id, { type: 'build', kind: 'town', hex: target });
+  assert.deepStrictEqual([p.res.obilie, p.res.sol, p.res.drevo], [5, 5, 5], 'tábor stojí obilie a soľ');
+  // mesto s pripojeným susedným poľom
+  const annex = g.annexOptions(g.hexes[target])[0];
+  g.act(p.id, { type: 'build', kind: 'town', hex: target, annex });
   assert.strictEqual(g.hexes[target].building.type, 'town');
+  assert.strictEqual(g.hexes[target].building.annex, annex);
+  assert.deepStrictEqual([p.res.ruda, p.res.kamen, p.res.obilie], [4, 3, 4], 'mesto stojí 2 ruda, 2 kameň, obilie');
   assert.strictEqual(g.vp(p), 4);
+});
+
+test('mesto zbiera aj z pripojeného poľa', () => {
+  const { g } = setupGame(2);
+  const p = g.current();
+  const k = Object.keys(g.hexes).find(x => g.hexes[x].building && g.hexes[x].building.owner === p.id);
+  const h = g.hexes[k];
+  h.building.type = 'town';
+  const ann = g.annexOptions(h).find(a => g.hexes[a].num !== h.num && a !== g.bandits);
+  if (!ann) return;
+  h.building.annex = ann;
+  const num = g.hexes[ann].num;
+  const d1 = Math.min(6, num - 1), d2 = num - d1;
+  const orig = g.rng; const q = [(d1 - 1) / 6 + 0.01, (d2 - 1) / 6 + 0.01];
+  g.rng = () => (q.length ? q.shift() : orig());
+  const r = TERRAIN_RES[g.hexes[ann].terrain];
+  const before = p.res[r];
+  g.act(p.id, { type: 'roll' });
+  assert.ok(p.res[r] >= before + 1, 'pripojené pole vyprodukovalo surovinu');
 });
 
 test('výprava odkrýva políčko a dáva titul Veľký objaviteľ', () => {
@@ -145,6 +181,12 @@ test('simulácia celej hry nespadne', () => {
       const p = g.current();
       if (g.phase === 'setup') { g.forceSkip(); continue; }
       roll(g, p);
+      for (const a of Object.keys(g.hexes).filter(k => g.inNetwork(k, p.id))) {
+        for (const n of g.neighbors(g.hexes[a])) {
+          if (!n.revealed || n.building || g.touchedByRoad(n.q + ',' + n.r, p.id)) continue;
+          try { g.act(p.id, { type: 'road', a, b: n.q + ',' + n.r }); } catch (e) { if (!(e instanceof GameError)) throw e; }
+        }
+      }
       for (const kind of ['town', 'camp', 'lighthouse']) {
         for (const k of Object.keys(g.hexes)) {
           try { g.act(p.id, { type: 'build', kind, hex: k }); } catch (e) { if (!(e instanceof GameError)) throw e; }
@@ -311,34 +353,37 @@ test('rozvojové karty: kúpa, zákaz hrania v ťahu kúpy, max. 1 za ťah, efek
   assert.strictEqual(p.devCards.length, 0);
 });
 
-test('najdlhšia cesta: reťaz 4+ stavieb na susedných poliach dá +2 body, prebratie len pri dlhšej', () => {
+test('najdlhšia cesta: aspoň 5 ciest za sebou dá +2 body, prebratie len pri dlhšej; súperova stavba ťah preruší', () => {
   const g = new Game({ rng: seeded(3) });
   g.addPlayer('A'); g.addPlayer('B');
   g.start(20);
-  for (const k in g.hexes) g.hexes[k].building = null;
+  for (const k in g.hexes) Object.assign(g.hexes[k], { building: null, revealed: true, terrain: 'les', num: 5 });
+  g.roads = {};
   const [a, b] = g.players;
   g.phase = 'play';
-  const put = (k, pid) => { g.hexes[k] = { ...g.hexes[k], revealed: true, terrain: 'les', num: 1 }; g.hexes[k].building = { owner: pid, type: 'camp' }; };
-  // A: rovná línia (0,0),(1,0),(2,0) + odbočka (0,1) → najdlhšia cesta = 4 ((0,1)-(0,0)-(1,0)-(2,0))
-  ['0,0', '1,0', '2,0'].forEach(k => put(k, a.id));
-  assert.strictEqual(g.longestPath(a.id).length, 3);
+  const road = (x, y, pid) => { g.roads[edgeKey(x, y)] = pid; };
+  // A: (−2,0)–(−1,0)–(0,0)–(1,0)–(2,0) = 4 cesty
+  ['-2,0', '-1,0', '0,0', '1,0', '2,0'].reduce((x, y) => { road(x, y, a.id); return y; });
+  assert.strictEqual(g.roadLength(a.id), 4);
   g.updateRoad();
-  assert.strictEqual(g.roadHolder, null, 'pod 4 stavby titul nie je');
-  put('-1,1', a.id);
-  assert.strictEqual(g.longestPath(a.id).length, 4);
+  assert.strictEqual(g.roadHolder, null, 'pod 5 ciest titul nie je');
+  road('2,0', '3,-1', a.id);
+  assert.strictEqual(g.roadLength(a.id), 5);
   const vp = g.vp(a);
   g.updateRoad();
   assert.strictEqual(g.roadHolder, a.id);
   assert.strictEqual(g.vp(a), vp + 2);
-  // B s rovnakou dĺžkou titul nepreberie
-  ['0,-2', '1,-2', '2,-2', '3,-3'].forEach(k => put(k, b.id));
+  // B s rovnakou dĺžkou titul nepreberie, s dlhšou áno
+  ['-3,3', '-2,3', '-1,3', '0,3', '-1,2', '0,2'].reduce((x, y) => { road(x, y, b.id); return y; });
+  assert.strictEqual(g.roadLength(b.id), 5);
   g.updateRoad();
   assert.strictEqual(g.roadHolder, a.id);
-  // dlhšia cesta titul preberie
-  put('-1,-1', b.id); put('-1,-2', b.id); // napojenie: (-1,-1)-(0,-2)? sused (0,-2) je (-1,-1)
-  assert.ok(g.longestPath(b.id).length >= 5, 'B má aspoň 5');
+  road('0,2', '1,1', b.id);
   g.updateRoad();
   assert.strictEqual(g.roadHolder, b.id);
+  // súperova stavba uprostred preruší ťah A
+  g.hexes['0,0'].building = { owner: b.id, type: 'camp' };
+  assert.ok(g.roadLength(a.id) < 5, 'cesta A je prerušená');
 });
 
 test('vojsko: verbovanie, Najväčšie vojsko, vyhnanie banditov, ochrana pred pirátmi', () => {
@@ -480,10 +525,12 @@ test('mosty: stavba na mori vedľa vlastnej stavby, rozšírenie dosahu a cesty'
   assert.strictEqual(g.hexes['1,0'].bridge, a.id);
   assert.strictEqual(g.hexes['1,0'].bridgeDir, 3, 'most smeruje k stavbe na západe');
   assert.deepStrictEqual([a.res.drevo, a.res.kamen], [7, 8]);
-  assert.ok(g.adjacentToOwn(g.hexes['2,0'], a.id), 'za mostom sa dá stavať');
+  g.roads = g.roads || {};
+  assert.ok(g.adjacentToOwn(g.hexes['2,0'], a.id), 'za mostom je pole v dosahu');
+  assert.throws(() => g.act(a.id, { type: 'build', kind: 'camp', hex: '2,0' }), /nevedie tvoja cesta/);
+  g.act(a.id, { type: 'road', a: '1,0', b: '2,0' }); // cesta z mosta na druhý breh
   const vp = g.vp(a);
   g.act(a.id, { type: 'build', kind: 'camp', hex: '2,0' });
   assert.strictEqual(g.vp(a), vp + 1, 'most sám body nedáva, tábor áno');
-  assert.strictEqual(g.longestPath(a.id).length, 3, 'tábor – most – tábor');
   assert.throws(() => g.act(a.id, { type: 'build', kind: 'bridge', hex: '1,0' }), /už most/);
 });
