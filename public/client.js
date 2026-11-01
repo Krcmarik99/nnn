@@ -170,7 +170,14 @@ function applyState(next, prev, afterRoll) {
   if (S.phase === 'ended' && prev.phase !== 'ended') return FX.sound('win');
   if (afterRoll) {
     const d = S.lastRoll.dice[1];
-    if (S.lastRoll.dice[0] + d === 7) FX.sound('bandits');
+    // banditi zablokovali produkciu?
+    const bh = S.bandits && S.hexes.find(h => h.k === S.bandits);
+    if (bh && bh.building && bh.num === S.lastRoll.dice[0]) {
+      anims.block = { kind: 'block', t0: performance.now() };
+      renderBoard();
+      setTimeout(() => FX.sound('block'), 250);
+    }
+    if (S.lastRoll.dice[0] + d === 7) { FX.sound('bandits'); banditAlarm(); }
     else if (d === 1) FX.sound('event');
     else if (d === 6) FX.sound('market');
     if (cards(S) > cards(prev)) setTimeout(() => FX.sound('gain'), d === 1 || d === 6 ? 450 : 150);
@@ -517,8 +524,27 @@ function lighthouseSvg(x, y, c) {
 }
 
 let lastBandits;
-function banditSvg(x, y, fresh) {
-  return `<g class="bandit${fresh ? ' drop' : ''}" transform="translate(${x},${y})">
+// Poplach pri súčte 7: nápis nad mapou a otras mapy
+function banditAlarm() {
+  const area = document.querySelector('.boardArea');
+  if (!area) return;
+  document.querySelectorAll('.banditAlarm').forEach(e => e.remove());
+  const cur = pl(S.current);
+  const el = document.createElement('div');
+  el.className = 'banditAlarm';
+  el.innerHTML = `<div class="ba-title">🦹 BANDITI!</div><div class="ba-sub">${S.current === S.me
+    ? 'Ťukni na pole, kam ich pošleš' : esc(cur ? cur.name : '') + ' presúva banditov'}</div>`;
+  area.appendChild(el);
+  setTimeout(() => el.remove(), 2300);
+  if (!reducedMotion()) {
+    area.classList.remove('shake'); void area.offsetWidth; area.classList.add('shake');
+    setTimeout(() => area.classList.remove('shake'), 700);
+  }
+}
+
+function banditSvg(x, y, leap, waiting) {
+  const cls = leap ? ' anim leap' : waiting ? ' wait' : '';
+  return `<g class="bandit${cls}" transform="translate(${x},${y})"${leap ? ` style="${leap}"` : ''}>
     <ellipse cx="1" cy="13" rx="12" ry="3.2" fill="#0008"/>
     <path d="M-11,13 Q-11,-1 0,-5 Q11,-1 11,13Z" fill="#2b2d31" stroke="#000" stroke-width="1.3"/>
     <path d="M0,-5 Q11,-1 11,13 L4,13 Q5,2 0,-5Z" fill="#0004"/>
@@ -667,6 +693,15 @@ function renderBoard() {
     return `<g class="anim b-${a.kind}" style="${a.style}">${svgStr}</g>`;
   };
   const banditMoved = lastBandits !== undefined && lastBandits !== S.bandits;
+  if (banditMoved) {
+    const from = S.hexes.find(h => h.k === lastBandits);
+    const to = S.hexes.find(h => h.k === S.bandits);
+    if (from && to) {
+      const [fx, fy] = pos(from), [tx, ty] = pos(to);
+      anims.bandit = { kind: 'leap', t0: performance.now(), fx: fx - tx, fy: fy - ty, ox: fx, oy: fy,
+        chased: /vyháňajú banditov/.test(S.log.at(-1) || '') };
+    }
+  }
   lastBandits = S.bandits;
   for (const h of S.hexes) {
     const [x, y] = pos(h);
@@ -705,7 +740,23 @@ function renderBoard() {
     }
     if (h.k === S.bandits) {
       marks = `<polygon points="${hexPts(x, y, R - 1)}" fill="#000" fill-opacity=".38"/>` + marks;
-      banditPiece = banditSvg(x, y - 22, banditMoved);
+      const lp = animOf('bandit');
+      const B = anims.bandit;
+      banditPiece = banditSvg(x, y - 22, lp ? `${lp.style};--fx:${B.fx.toFixed(1)}px;--fy:${B.fy.toFixed(1)}px` : null,
+        S.pendingBandits && S.phase === 'play');
+      if (lp) {
+        fxLayer += `<g class="anim" style="${lp.style}"><g class="land">${dustSvg(x, y - 9, '#4a4a4a')}${dustSvg(x, y - 9)}</g>`
+          + (B.chased ? `<text class="swords" x="${B.ox}" y="${B.oy}" text-anchor="middle" font-size="30">⚔️</text>` : '')
+          + `<text class="smoke" x="${B.ox}" y="${B.oy - 10}" text-anchor="middle" font-size="22">💨</text></g>`;
+      }
+      const bl = animOf('block');
+      if (bl) {
+        const r = TERRAIN[h.terrain] && TERRAIN[h.terrain].res;
+        fxLayer += `<g class="anim" style="${bl.style}">
+          <circle class="blockring" cx="${x}" cy="${y + 2}" r="22" fill="none" stroke="#ff4d4d" stroke-width="4"/>
+          <text class="blockno" x="${x}" y="${y + 12}" text-anchor="middle" font-size="30">🚫</text>
+          ${r ? `<text class="blockres" x="${x + 4}" y="${y + 30}" text-anchor="middle" font-size="18" style="--bx:-4px;--by:-46px">${RES_ICON[r]}</text>` : ''}</g>`;
+      }
     }
   }
   const vb = svg.viewBox.baseVal;
