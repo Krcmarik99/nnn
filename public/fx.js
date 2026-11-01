@@ -69,6 +69,12 @@ const FX = (() => {
       }
     },
     land(t) { knock(t, 180); knock(t + 0.1, 150, 0.25); },
+    boom(t) {
+      noise(t, 0.5, { vol: 0.4, freq: 300, kind: 'lowpass', q: 0.6 });
+      tone(90, t, 0.4, { type: 'sine', vol: 0.15, to: 45 });
+      for (let i = 0; i < 9; i++) noise(t + 0.25 + Math.random() * 0.6, 0.03, { vol: 0.12, freq: 4000 + Math.random() * 3000, q: 3 });
+    },
+    tap(t) { knock(t, 240 + Math.random() * 60, 0.18); },
     gain(t) {
       tone(880, t, 0.14, { vol: 0.12 });
       tone(1318, t + 0.09, 0.22, { vol: 0.12 });
@@ -129,19 +135,63 @@ const FX = (() => {
     try { localStorage.setItem('suostrovie-mute', v ? '1' : '0'); } catch {}
   }
 
-  // ---------- kocky ----------
+  // ---------- 3D kocky ----------
   const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
-  function face(el, n) {
-    el.innerHTML = Array.from({ length: 9 }, (_, i) => `<i class="${PIPS[n].includes(i) ? 'pip' : ''}"></i>`).join('');
+  // natočenie kocky tak, aby stena n smerovala k hráčovi
+  const ORIENT = { 1: [0, 0], 2: [0, -90], 3: [-90, 0], 4: [90, 0], 5: [0, 90], 6: [0, 180] };
+  const VIEW = 'rotateX(-24deg) rotateY(-26deg)';
+  const T = (rx, ry, rz) => `${VIEW} rotateZ(${rz}deg) rotateX(${rx}deg) rotateY(${ry}deg)`;
+
+  function buildCube(el) {
+    if (el.childElementCount) return;
+    el.innerHTML = [1, 2, 3, 4, 5, 6].map(n =>
+      `<div class="f f${n}">${Array.from({ length: 9 }, (_, i) => `<i class="${PIPS[n].includes(i) ? 'pip' : ''}"></i>`).join('')}</div>`).join('');
   }
 
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let hideTimer = null;
+  const DUR = 1250;
+
+  function throwDie(slot, value, delay, dir) {
+    const cube = slot.querySelector('.cube');
+    const thr = slot.querySelector('.dthrow');
+    const sh = slot.querySelector('.dshadow');
+    buildCube(cube);
+    const [ox, oy] = ORIENT[value];
+    const rz = Math.round((Math.random() - 0.5) * 24);
+    const end = T(ox + 360 * (2 + Math.floor(Math.random() * 2)), oy + 360 * (2 + Math.floor(Math.random() * 2)), rz + 360);
+    if (reduced) { cube.style.transform = end; return; }
+    const start = T(Math.random() * 180, Math.random() * 180, Math.random() * 90);
+    cube.animate([{ transform: start }, { transform: end }],
+      { duration: DUR, delay, easing: 'cubic-bezier(.12,.55,.2,1)', fill: 'both' });
+    const fall = 'cubic-bezier(.5,0,1,1)', rise = 'cubic-bezier(0,0,.5,1)';
+    const X = v => v * dir;
+    // hod s odrazmi (gravitácia: pád zrýchľuje, výskok spomaľuje)
+    thr.animate([
+      { transform: `translate(${X(-250)}px,-170px)`, easing: fall },
+      { transform: `translate(${X(-115)}px,0)`, offset: 0.38, easing: rise },
+      { transform: `translate(${X(-52)}px,-48px)`, offset: 0.56, easing: fall },
+      { transform: `translate(${X(-19)}px,0)`, offset: 0.72, easing: rise },
+      { transform: `translate(${X(-7)}px,-13px)`, offset: 0.83, easing: fall },
+      { transform: 'translate(0,0)', offset: 0.93, easing: 'ease-out' },
+      { transform: 'translate(0,0)' },
+    ], { duration: DUR, delay, fill: 'both' });
+    sh.animate([
+      { transform: `translate(${X(-250)}px,0) scale(.45)`, opacity: 0.1 },
+      { transform: `translate(${X(-115)}px,0) scale(1)`, opacity: 0.65, offset: 0.38 },
+      { transform: `translate(${X(-52)}px,0) scale(.72)`, opacity: 0.32, offset: 0.56 },
+      { transform: `translate(${X(-19)}px,0) scale(1)`, opacity: 0.65, offset: 0.72 },
+      { transform: `translate(${X(-7)}px,0) scale(.9)`, opacity: 0.5, offset: 0.83 },
+      { transform: 'translate(0,0) scale(1)', opacity: 0.65, offset: 0.93 },
+      { transform: 'translate(0,0) scale(1)', opacity: 0.65 },
+    ], { duration: DUR, delay, fill: 'both' });
+    // ťuknutia pri dopadoch
+    for (const o of [0.38, 0.72, 0.93]) setTimeout(() => sound('tap'), delay + DUR * o);
+  }
 
   function rollDice([prod, ev], caption, onLanded) {
     const ov = document.getElementById('diceOverlay');
-    const d1 = ov.querySelector('.die.prod');
-    const d2 = ov.querySelector('.die.ev');
+    const slots = ov.querySelectorAll('.dslot');
     const cap = ov.querySelector('.cap');
     clearTimeout(hideTimer);
     ov.hidden = false;
@@ -149,18 +199,12 @@ const FX = (() => {
     ov.classList.add('rolling');
     cap.textContent = caption;
     sound('rattle');
-    const spin = setInterval(() => {
-      face(d1, 1 + Math.floor(Math.random() * 6));
-      face(d2, 1 + Math.floor(Math.random() * 6));
-    }, 70);
-    const dur = reduced ? 250 : 900;
+    throwDie(slots[0], prod, 0, 1);
+    throwDie(slots[1], ev, 80, 1);
     let done = false;
     const land = () => {
       if (done) return;
       done = true;
-      clearInterval(spin);
-      face(d1, prod);
-      face(d2, ev);
       ov.classList.remove('rolling');
       ov.classList.add('landed');
       if (ev === 1) ov.classList.add('ev1');
@@ -172,9 +216,9 @@ const FX = (() => {
       hideTimer = setTimeout(() => {
         ov.classList.add('fade');
         hideTimer = setTimeout(() => { ov.hidden = true; }, 400);
-      }, 1500);
+      }, 1600);
     };
-    setTimeout(land, dur);
+    setTimeout(land, reduced ? 250 : DUR + 120);
     ov.onclick = () => { if (done) { clearTimeout(hideTimer); ov.hidden = true; } };
   }
 

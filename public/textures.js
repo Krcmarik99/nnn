@@ -244,6 +244,15 @@ const TEXTURES = (() => { try {
     });
   });
 
+  // tiene oblakov plávajúce nad ostrovom (priehľadné, dláždené)
+  T.cshadow = canvas(ctx => {
+    const n = makeNoise(101);
+    pixels(ctx, (u, v) => {
+      const t = fbm(n, u, v, 2, 5);
+      return [8, 18, 30, smooth(0.5, 0.72, t) * 92];
+    });
+  });
+
   T.piesok = canvas(ctx => {
     const n = makeNoise(91);
     pixels(ctx, (u, v) => {

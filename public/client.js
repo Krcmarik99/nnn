@@ -167,7 +167,7 @@ function applyState(next, prev, afterRoll) {
   if (!prev || prev.phase === 'lobby' && S.phase === 'lobby') return;
   const cards = st => { const p = st.players.find(x => x.id === st.me); return p ? p.cards : 0; };
   const sum = (st, f) => st.players.reduce((a, p) => a + (p[f] || 0), 0);
-  if (S.phase === 'ended' && prev.phase !== 'ended') return FX.sound('win');
+  if (S.phase === 'ended' && prev.phase !== 'ended') return celebrate();
   if (afterRoll) {
     const d = S.lastRoll.dice[1];
     // banditi zablokovali produkciu?
@@ -409,12 +409,13 @@ function texturePatterns() {
   const pat = (id, url, size, x = 0, y = 0) => `<pattern id="tx-${id}" patternUnits="userSpaceOnUse" x="${x}" y="${y}" width="${size}" height="${size}">
     <image href="${url}" width="${size}" height="${size}" preserveAspectRatio="none"/></pattern>`;
   return ['les', 'lom', 'bana', 'pole', 'solnisko', 'more', 'hmla'].map(k => pat(k, TEXTURES[k], 96, -48, -48)).join('')
+    + (TEXTURES.cshadow ? pat('cshadow', TEXTURES.cshadow, 320) : '')
     + pat('ocean', TEXTURES.ocean, 140) + pat('caustic', TEXTURES.caustic, 120) + pat('piesok', TEXTURES.piesok, 70);
 }
 
 const TILE_DEFS = (() => {
   const grad = (id, a, b) => `<radialGradient id="${id}" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></radialGradient>`;
-  const tile = (id, body) => `<g id="${id}" clip-path="url(#hexclip)">${body}<polygon points="${hexPts(0, 0)}" fill="url(#g-light)"/></g>`;
+  const tile = (id, body) => `<g id="${id}" clip-path="url(#hexclip)">${body}<polygon points="${hexPts(0, 0)}" fill="url(#g-light)"/><polygon points="${hexPts(0, 0)}" fill="url(#g-ao)"/></g>`;
   const base = id => `<polygon points="${hexPts(0, 0)}" fill="url(#${TEXTURES && TEXTURES[id] ? 'tx' : 'g'}-${id})"/>`;
   const dots = (c, n, seed) => {
     let out = '', v = seed;
@@ -436,6 +437,9 @@ const TILE_DEFS = (() => {
     ${grad('g-solnisko', '#f4f9fc', '#a9c3d3')}
     ${grad('g-more', '#4f9bd9', '#1b4f86')}
     ${grad('g-hmla', '#273d58', '#131f30')}
+    <radialGradient id="g-ao" cx="50%" cy="50%" r="55%"><stop offset=".72" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".34"/></radialGradient>
+    <linearGradient id="g-earth" x1="0" y1="0" x2="0" y2="1"><stop offset=".55" stop-color="#7a5636"/><stop offset=".8" stop-color="#4f3520"/><stop offset="1" stop-color="#22160b"/></linearGradient>
+    <radialGradient id="g-sun" cx="22%" cy="16%" r="60%"><stop offset="0" stop-color="#fff6d8" stop-opacity=".22"/><stop offset=".5" stop-color="#fff6d8" stop-opacity=".05"/><stop offset="1" stop-color="#fff6d8" stop-opacity="0"/></radialGradient>
     <linearGradient id="g-light" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/>
       <stop offset=".7" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".3"/></linearGradient>
@@ -477,6 +481,7 @@ const TILE_DEFS = (() => {
 })();
 
 function campSvg(x, y, c) {
+  if (typeof SPRITES !== 'undefined' && SPRITES) return SPRITES.image('camp', x, y, c);
   return `<g transform="translate(${x},${y})">
     <ellipse cx="1" cy="10" rx="16" ry="3.5" fill="#0006"/>
     <path d="M-14,10 L0,-10 L14,10Z" fill="${c}" stroke="#111" stroke-width="1.5" stroke-linejoin="round"/>
@@ -487,6 +492,7 @@ function campSvg(x, y, c) {
   </g>`;
 }
 function townSvg(x, y, c) {
+  if (typeof SPRITES !== 'undefined' && SPRITES) return SPRITES.image('town', x, y, c);
   const crenel = (bx, by, w) => Array.from({ length: Math.floor(w / 4) }, (_, i) => i % 2 ? '' : `<rect x="${bx + i * 4}" y="${by - 3}" width="4" height="3"/>`).join('');
   return `<g transform="translate(${x},${y})" stroke="#111" stroke-width="1.3" fill="${c}">
     <ellipse cx="1" cy="12" rx="21" ry="3.5" fill="#0006" stroke="none"/>
@@ -500,6 +506,7 @@ function townSvg(x, y, c) {
   </g>`;
 }
 function portSvg(x, y, c) {
+  if (typeof SPRITES !== 'undefined' && SPRITES) return SPRITES.image('port', x, y, c);
   return `<g transform="translate(${x},${y})" stroke="#111" stroke-width="1">
     <ellipse cx="1" cy="12" rx="12" ry="2.8" fill="#0006" stroke="none"/>
     <rect x="-12" y="4" width="24" height="5" rx="1" fill="#8d5a2b"/>
@@ -513,6 +520,7 @@ function portSvg(x, y, c) {
 }
 
 function lighthouseSvg(x, y, c) {
+  if (typeof SPRITES !== 'undefined' && SPRITES) return SPRITES.image('lighthouse', x, y, c);
   return `<g transform="translate(${x},${y})" stroke="#111" stroke-width="1">
     <circle cx="0" cy="-14" r="13" fill="url(#g-glow)" stroke="none"/>
     <ellipse cx="1" cy="16" rx="8" ry="2.5" fill="#0006" stroke="none"/>
@@ -544,6 +552,9 @@ function banditAlarm() {
 
 function banditSvg(x, y, leap, waiting) {
   const cls = leap ? ' anim leap' : waiting ? ' wait' : '';
+  if (typeof SPRITES !== 'undefined' && SPRITES) {
+    return `<g class="bandit${cls}" transform="translate(${x},${y})"${leap ? ` style="${leap}"` : ''}>${SPRITES.image('bandit', 0, 0)}</g>`;
+  }
   return `<g class="bandit${cls}" transform="translate(${x},${y})"${leap ? ` style="${leap}"` : ''}>
     <ellipse cx="1" cy="13" rx="12" ry="3.2" fill="#0008"/>
     <path d="M-11,13 Q-11,-1 0,-5 Q11,-1 11,13Z" fill="#2b2d31" stroke="#000" stroke-width="1.3"/>
@@ -563,6 +574,43 @@ const ANIM_MS = 1600;            // ako dlho sa nová stavba považuje za „če
 let boardSnap = null;            // stav stavieb pri poslednom vykreslení
 let edgeSnap = null;             // spojnice (cesty) pri poslednom vykreslení
 const anims = {};                // kľúč → { kind, t0 }
+const pendingFx = [];            // časticové efekty, ktoré sa spustia po vykreslení mapy
+
+// bod mapy (jednotky SVG) → bod obrazovky
+function svgToScreen(x, y) {
+  const svg = $('board');
+  const m = svg && svg.getScreenCTM();
+  if (!m) return null;
+  const pt = svg.createSVGPoint();
+  pt.x = x; pt.y = y;
+  const p = pt.matrixTransform(m);
+  return { x: p.x, y: p.y, s: Math.max(0.5, Math.min(1.6, m.a)) };
+}
+
+function runPendingFx(pos) {
+  if (typeof PFX === 'undefined') { pendingFx.length = 0; return; }
+  while (pendingFx.length) {
+    const e = pendingFx.shift();
+    if (e.kind === 'bandit') {
+      const p = svgToScreen(e.x, e.y - 8), o = svgToScreen(e.ox, e.oy - 8);
+      if (p) PFX.dust(p.x, p.y, p.s * 0.9, 0.6, '110,105,100');
+      if (o) PFX.smoke(o.x, o.y, o.s * 0.8, 0.05);
+      continue;
+    }
+    const h = S.hexes.find(x => x.k === e.k);
+    if (!h) continue;
+    const [x, y] = pos(h);
+    const at = (dx, dy) => svgToScreen(x + dx, y + dy);
+    let p;
+    switch (e.kind) {
+      case 'new': p = at(0, 36); if (p) PFX.dust(p.x, p.y, p.s, 0.33); break;
+      case 'up': p = at(0, 22); if (p) { PFX.sparks(p.x, p.y, p.s, 0.25); PFX.smoke(p.x, p.y + 10, p.s, 0.1); PFX.dust(p.x, p.y + 14, p.s, 0.4); } break;
+      case 'lh': p = at(27, 28); if (p) PFX.dust(p.x, p.y, p.s * 0.8, 0.45, '200,200,200'); break;
+      case 'port': p = at(-27, 26); if (p) PFX.splash(p.x, p.y, p.s, 0.3); break;
+      case 'reveal': p = at(0, 0); if (p) PFX.sparks(p.x, p.y, p.s * 0.8, 0.15); break;
+    }
+  }
+}
 
 function trackBuildAnims() {
   const now = performance.now();
@@ -574,11 +622,11 @@ function trackBuildAnims() {
     for (const h of S.hexes) {
       const prev = boardSnap[h.k] || { b: '', L: false, P: false };
       const cur = snap[h.k];
-      if (cur.b && !prev.b) anims[h.k + ':b'] = { kind: 'new', t0: now };
-      else if (cur.b === 'town' && prev.b === 'camp') anims[h.k + ':b'] = { kind: 'up', t0: now };
-      if (cur.L && !prev.L) anims[h.k + ':L'] = { kind: 'lh', t0: now };
-      if (cur.P && !prev.P) anims[h.k + ':P'] = { kind: 'port', t0: now };
-      if (cur.R && prev.R === false) anims[h.k + ':r'] = { kind: 'reveal', t0: now };
+      if (cur.b && !prev.b) { anims[h.k + ':b'] = { kind: 'new', t0: now }; pendingFx.push({ k: h.k, kind: 'new' }); }
+      else if (cur.b === 'town' && prev.b === 'camp') { anims[h.k + ':b'] = { kind: 'up', t0: now }; pendingFx.push({ k: h.k, kind: 'up' }); }
+      if (cur.L && !prev.L) { anims[h.k + ':L'] = { kind: 'lh', t0: now }; pendingFx.push({ k: h.k, kind: 'lh' }); }
+      if (cur.P && !prev.P) { anims[h.k + ':P'] = { kind: 'port', t0: now }; pendingFx.push({ k: h.k, kind: 'port' }); }
+      if (cur.R && prev.R === false) { anims[h.k + ':r'] = { kind: 'reveal', t0: now }; pendingFx.push({ k: h.k, kind: 'reveal' }); }
     }
   }
   boardSnap = snap;
@@ -602,7 +650,8 @@ function dustSvg(x, y, color = '#d9c7a0') {
 
 function buildFxSvg(x, y, kind, color, vp) {
   let fx = '';
-  if (kind === 'new') fx += dustSvg(x, y + 36);
+  const hasPfx = typeof PFX !== 'undefined';
+  if (kind === 'new' && !hasPfx) fx += dustSvg(x, y + 36);
   if (kind === 'up') {
     fx += `<circle class="ring" cx="${x}" cy="${y + 26}" r="22" fill="none" stroke="#ffd166" stroke-width="3"/>`;
     fx += Array.from({ length: 6 }, (_, i) => {
@@ -612,7 +661,7 @@ function buildFxSvg(x, y, kind, color, vp) {
     }).join('');
   }
   if (kind === 'lh') {
-    fx += dustSvg(x + 27, y + 28, '#cfd6dc');
+    if (!hasPfx) fx += dustSvg(x + 27, y + 28, '#cfd6dc');
     fx += `<circle class="beam" cx="${x + 27}" cy="${y - 2}" r="16" fill="url(#g-glow)"/>`;
   }
   if (kind === 'port') {
@@ -669,6 +718,8 @@ function oceanSvg(x, y, w, h) {
   return `<clipPath id="oceanclip"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="22"/></clipPath>
     <g clip-path="url(#oceanclip)"><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#tx-ocean)"/>
     <rect class="shimmer" x="${x - 120}" y="${y - 120}" width="${w + 240}" height="${h + 240}" fill="url(#tx-caustic)" opacity=".35"/>
+    <rect class="shimmer2" x="${x - 120}" y="${y - 120}" width="${w + 240}" height="${h + 240}" fill="url(#tx-caustic)" opacity=".2"/>
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#g-sun)"/>
     <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#g-vignette)"/></g>`;
 }
 
@@ -685,6 +736,8 @@ function renderBoard() {
   const valid = validHexes();
   const lastNum = S.dice ? S.dice[0] : null;
   let tiles = '', seaTiles = '', shore = '', pieces = '', marks = '', banditPiece = '', fxLayer = '';
+  const landTiles = [];
+  const DEPTH = 7; // hrúbka ostrova – pevnina je vyvýšená ako na makete
   trackBuildAnims();
   const wrap = (key, svgStr, x, y, color, vp) => {
     const a = animOf(key);
@@ -700,6 +753,7 @@ function renderBoard() {
       const [fx, fy] = pos(from), [tx, ty] = pos(to);
       anims.bandit = { kind: 'leap', t0: performance.now(), fx: fx - tx, fy: fy - ty, ox: fx, oy: fy,
         chased: /vyháňajú banditov/.test(S.log.at(-1) || '') };
+      pendingFx.push({ kind: 'bandit', x: tx, y: ty, ox: fx, oy: fy });
     }
   }
   lastBandits = S.bandits;
@@ -707,7 +761,9 @@ function renderBoard() {
     const [x, y] = pos(h);
     const id = h.revealed ? h.terrain : 'hmla';
     const flip = ((h.q * 7 + h.r * 13) & 1) ? -1 : 1;
-    let inner = `<use href="#t-${id}" transform="translate(${x},${y}) scale(${flip},1)"/>
+    const isLand = h.revealed && h.terrain !== 'more';
+    let inner = (isLand ? `<polygon points="${hexPts(x, y + DEPTH)}" fill="url(#g-earth)" stroke="#1a0f06" stroke-opacity=".5" stroke-width="1"/>` : '')
+      + `<use href="#t-${id}" transform="translate(${x},${y}) scale(${flip},1)"/>
       <polygon points="${hexPts(x, y, R - 2.5)}" fill="none" stroke="#ffffff" stroke-opacity=".14" stroke-width="1.5"/>
       <polygon class="edge" points="${hexPts(x, y)}" fill="none" stroke="#0b1520" stroke-opacity=".55" stroke-width="1.6"/>`;
     if (h.revealed && h.terrain !== 'more') {
@@ -725,18 +781,21 @@ function renderBoard() {
         ${Array.from({ length: 8 }, (_, i) => { const a = i / 8 * Math.PI * 2; return `<path class="spark" d="M${x},${y} l0,-5" stroke="#fff3b0" stroke-width="2" stroke-linecap="round" style="--dx:${(Math.cos(a) * 40).toFixed(1)}px;--dy:${(Math.sin(a) * 34).toFixed(1)}px"/>`; }).join('')}</g>`;
     }
     if (h.revealed && h.terrain !== 'more') {
-      tiles += tileG;
-      shore += `<polygon points="${hexPts(x, y, R + 10)}" fill="#e0f2ff" fill-opacity=".16"/>`;
-      shore += `<polygon points="${hexPts(x, y, R + 5)}" fill="${TEXTURES ? 'url(#tx-piesok)' : '#e6cf95'}" stroke="#bfa063" stroke-opacity=".6" stroke-width="1"/>`;
+      landTiles.push([y, x, tileG]);
+      shore += `<polygon points="${hexPts(x, y + DEPTH * 0.6, R + 10)}" fill="#e0f2ff" fill-opacity=".16"/>`;
+      shore += `<polygon points="${hexPts(x, y + DEPTH * 0.6, R + 5)}" fill="${TEXTURES ? 'url(#tx-piesok)' : '#e6cf95'}" stroke="#bfa063" stroke-opacity=".6" stroke-width="1"/>`;
     } else {
       seaTiles += tileG;
     }
     if (valid.has(h.k)) marks += `<polygon class="hl" points="${hexPts(x, y, R - 2)}"/>`;
     if (h.building) {
       const c = pl(h.building.owner).color;
+      const winG = S.phase === 'ended' && h.building.owner === S.winner;
+      if (winG) pieces += '<g class="winglow">';
       pieces += wrap(h.k + ':b', h.building.type === 'camp' ? campSvg(x, y + 26, c) : townSvg(x, y + 26, c), x, y, c, 1);
       if (h.lighthouse) pieces += wrap(h.k + ':L', lighthouseSvg(x + 27, y + 12, c), x, y, c, 1);
       if (h.port) pieces += wrap(h.k + ':P', portSvg(x - 27, y + 14, c), x, y, c, 1);
+      if (winG) pieces += '</g>';
     }
     if (h.k === S.bandits) {
       marks = `<polygon points="${hexPts(x, y, R - 1)}" fill="#000" fill-opacity=".38"/>` + marks;
@@ -745,9 +804,9 @@ function renderBoard() {
       banditPiece = banditSvg(x, y - 22, lp ? `${lp.style};--fx:${B.fx.toFixed(1)}px;--fy:${B.fy.toFixed(1)}px` : null,
         S.pendingBandits && S.phase === 'play');
       if (lp) {
-        fxLayer += `<g class="anim" style="${lp.style}"><g class="land">${dustSvg(x, y - 9, '#4a4a4a')}${dustSvg(x, y - 9)}</g>`
+        fxLayer += `<g class="anim" style="${lp.style}">`
           + (B.chased ? `<text class="swords" x="${B.ox}" y="${B.oy}" text-anchor="middle" font-size="30">⚔️</text>` : '')
-          + `<text class="smoke" x="${B.ox}" y="${B.oy - 10}" text-anchor="middle" font-size="22">💨</text></g>`;
+          + (typeof PFX === 'undefined' ? `<g class="land">${dustSvg(x, y - 9, '#4a4a4a')}${dustSvg(x, y - 9)}</g>` : '') + '</g>';
       }
       const bl = animOf('block');
       if (bl) {
@@ -759,8 +818,12 @@ function renderBoard() {
       }
     }
   }
+  tiles = landTiles.sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(t => t[2]).join('');
   const vb = svg.viewBox.baseVal;
-  svg.innerHTML = TILE_DEFS + oceanSvg(vb.x, vb.y, vb.width, vb.height) + `<g>${seaTiles}</g><g class="shore">${shore}</g><g filter="url(#f-shadow)">${tiles}</g><g pointer-events="none">${marks}${roadsSvg(pos)}${pieces}${banditPiece}${fxLayer}</g>`;
+  const cloudShadows = TEXTURES && TEXTURES.cshadow ? `<g clip-path="url(#oceanclip)" pointer-events="none">
+    <rect class="cshadow" x="${vb.x - 320}" y="${vb.y - 320}" width="${vb.width + 640}" height="${vb.height + 640}" fill="url(#tx-cshadow)"/></g>` : '';
+  svg.innerHTML = TILE_DEFS + oceanSvg(vb.x, vb.y, vb.width, vb.height) + `<g>${seaTiles}</g><g class="shore">${shore}</g><g filter="url(#f-shadow)">${tiles}</g>${cloudShadows}<g pointer-events="none">${marks}${roadsSvg(pos)}${pieces}${banditPiece}${fxLayer}</g>`;
+  runPendingFx(pos);
   svg.querySelectorAll('.hex.valid').forEach(g => {
     g.onclick = () => {
       const k = g.dataset.k;
@@ -901,6 +964,40 @@ function flyIcon(r, from, to, delay) {
     el.remove();
     if (to.el) { to.el.classList.remove('got'); void to.el.offsetWidth; to.el.classList.add('got'); }
   };
+}
+
+// ---------- oslava víťazstva ----------
+function celebrate() {
+  FX.sound('win');
+  const win = pl(S.winner);
+  if (!win) return;
+  document.querySelectorAll('.victory').forEach(e => e.remove());
+  const ranks = [...S.players].sort((a, b) => b.vp - a.vp);
+  const medal = ['🥇', '🥈', '🥉'];
+  const meWon = S.winner === S.me;
+  const el = document.createElement('div');
+  el.className = 'victory';
+  el.innerHTML = `<div class="v-rays"></div><div class="v-card">
+      <div class="v-trophy">🏆</div>
+      <div class="v-title">${meWon ? 'Víťazstvo!' : 'Koniec hry'}</div>
+      <div class="v-sub">${meWon ? 'Vyhral(a) si' : `<b style="color:${win.color}">${esc(win.name)}</b> vyhráva`} s ${win.vp} bodmi</div>
+      <ol class="v-rank">${ranks.map((p, i) => `<li style="--d:${700 + i * 160}ms">
+        <span class="m">${medal[i] || (i + 1) + '.'}</span><span class="dot" style="background:${p.color}"></span>
+        <span class="n">${esc(p.name)}${p.id === S.me ? ' (ty)' : ''}</span><b>${p.vp} b.</b></li>`).join('')}</ol>
+      <button class="primary" id="vClose">Pozrieť mapu</button></div>`;
+  document.body.appendChild(el);
+  const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 400); };
+  $('vClose').onclick = close;
+  if (typeof PFX === 'undefined' || reducedMotion()) return;
+  const colors = [...S.players.map(p => p.color), '#ffd166', '#ffffff'];
+  PFX.confetti(170, colors);
+  setTimeout(() => document.body.contains(el) && PFX.confetti(110, colors), 2600);
+  let n = 0;
+  const t = setInterval(() => {
+    if (++n > 16 || !document.body.contains(el)) { clearInterval(t); return; }
+    const c = colors[Math.floor(Math.random() * colors.length)];
+    PFX.firework(innerWidth * (0.12 + Math.random() * 0.76), innerHeight * (0.1 + Math.random() * 0.32), c, () => FX.sound('boom'));
+  }, 380);
 }
 
 // ---------- animácie rozvojových kariet ----------
