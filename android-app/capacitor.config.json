@@ -1,0 +1,13 @@
+{
+  "appId": "sk.suostrovie.hra",
+  "appName": "Súostrovie",
+  "webDir": "www",
+  "server": {
+    "url": "https://suostrovie.onrender.com",
+    "cleartext": false,
+    "errorPath": "offline.html"
+  },
+  "android": {
+    "backgroundColor": "#0c2440"
+  }
+}

@@ -1514,4 +1514,34 @@ function renderHero() {
 }
 renderHero();
 
+// ---------- inštalácia ako aplikácia ----------
+(function setupInstall() {
+  const isApp = window.Capacitor || (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+  if (isApp) return; // už beží ako aplikácia
+  const box = $('appBox');
+  const ua = navigator.userAgent;
+  const isIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /android/i.test(ua);
+  if (isAndroid) { $('apkLink').hidden = false; box.hidden = false; }
+  if (isIOS) { $('iosHint').hidden = false; box.hidden = false; }
+  let deferred = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferred = e;
+    $('btnInstall').hidden = false;
+    box.hidden = false;
+  });
+  $('btnInstall').onclick = async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    await deferred.userChoice.catch(() => {});
+    deferred = null;
+    $('btnInstall').hidden = true;
+  };
+  window.addEventListener('appinstalled', () => { $('btnInstall').hidden = true; toast('Aplikácia je nainštalovaná 🎉', true); });
+})();
+
 connect();

@@ -1,0 +1,17 @@
+{
+  "name": "suostrovie-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Android aplikácia Súostrovie (Capacitor obal okolo https://suostrovie.onrender.com)",
+  "scripts": {
+    "assets": "capacitor-assets generate --android --iconBackgroundColor '#0c3157' --iconBackgroundColorDark '#0c3157' --splashBackgroundColor '#0c2440' --splashBackgroundColorDark '#0c2440'"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.0.0"
+  }
+}

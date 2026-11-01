@@ -1,0 +1,83 @@
+name: Android aplikácia
+
+# Zostaví Android aplikáciu (.apk) pri každom pushi. Z vetvy main ju zverejní
+# ako „release“, takže sa dá stiahnuť cez stály odkaz:
+# https://github.com/Krcmarik99/nnn/releases/latest/download/Suostrovie.apk
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: android-app/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Závislosti
+        run: npm ci
+
+      - name: Android projekt, ikony a úvodná obrazovka
+        run: |
+          npx cap add android
+          npm run assets
+          npx cap sync android
+
+      - name: Číslo verzie
+        run: |
+          sed -i "s/versionCode 1$/versionCode ${{ github.run_number }}/" android/app/build.gradle
+          sed -i "s/versionName \"1.0\"/versionName \"1.${{ github.run_number }}\"/" android/app/build.gradle
+          grep -n "versionCode\|versionName" android/app/build.gradle
+
+      # Stály podpisový kľúč – nové verzie sa dajú nainštalovať cez staré bez odinštalovania
+      - name: Podpisový kľúč
+        run: mkdir -p ~/.android && cp debug.keystore ~/.android/debug.keystore
+
+      - name: Zostavenie APK
+        working-directory: android-app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk ../Suostrovie.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Suostrovie-apk
+          path: android-app/Suostrovie.apk
+
+      - name: Zverejniť na stiahnutie
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: Súostrovie pre Android (verzia 1.${{ github.run_number }})
+          make_latest: true
+          files: android-app/Suostrovie.apk
+          body: |
+            📲 **Súostrovie pre Android**
+
+            1. Stiahni **Suostrovie.apk** nižšie.
+            2. Otvor stiahnutý súbor a povoľ inštaláciu z tohto zdroja (Chrome / Súbory).
+            3. Nainštaluj a hraj – aplikácia sa pripája na https://suostrovie.onrender.com.
+
+            Nové verzie sa inštalujú cez starú, nie je potrebné odinštalovať.
