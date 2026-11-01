@@ -64,6 +64,19 @@ Iné možnosti: Railway, Fly.io, alebo lokálne spustenie + tunel
 (`cloudflared tunnel --url http://localhost:3000`). V rovnakej Wi-Fi stačí
 otvoriť `http://<IP-tvojho-počítača>:3000`.
 
+## Aplikácia na stiahnutie
+
+- **Android (.apk):** https://github.com/Krcmarik99/nnn/releases/latest/download/Suostrovie.apk
+  Stiahni, otvor a povoľ inštaláciu z tohto zdroja. Aplikácia (Capacitor, priečinok `android-app/`)
+  sa pripája na https://suostrovie.onrender.com, takže má vždy najnovšiu verziu hry.
+  GitHub Actions (`.github/workflows/android.yml`) ju zostaví pri každom pushi a z vetvy `main`
+  ju zverejní ako release. Nové verzie sa inštalujú cez staré (rovnaký podpisový kľúč `android-app/debug.keystore`).
+- **Ako webová aplikácia (PWA)** – Android, Windows, Mac, Linux: v Chrome/Edge na stránke hry ťukni na
+  **📲 Nainštalovať aplikáciu** (alebo v menu prehliadača „Inštalovať aplikáciu“).
+- **iPhone / iPad:** v Safari ťukni na **Zdieľať** → **Pridať na plochu**.
+
+Ikony a úvodné obrazovky sa generujú z grafiky hry: `node tools/make-icons.js`.
+
 ## Pravidlá v skratke
 
 - **Mapa:** 37 šesťuholníkov. Stred je odkrytý, vonkajší okruh je v hmle.

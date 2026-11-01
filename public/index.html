@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Súostrovie</title>
+<meta name="description" content="Objavuj ostrovy, obchoduj s kamarátmi a stavaj. Online hra pre 2–5 hráčov aj proti AI.">
+<meta name="theme-color" content="#0f2238">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/icons/favicon-64.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Súostrovie">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Nunito:wght@400;600;700;800&display=swap">
@@ -23,6 +32,11 @@
     <div class="or">alebo</div>
     <label>Kód párty <input id="code" maxlength="5" placeholder="ABCDE" style="text-transform:uppercase"></label>
     <button id="btnJoin">Pripojiť sa</button>
+    <div id="appBox" class="appbox" hidden>
+      <button id="btnInstall" hidden>📲 Nainštalovať aplikáciu</button>
+      <a id="apkLink" class="btnlink" hidden href="https://github.com/Krcmarik99/nnn/releases/latest/download/Suostrovie.apk">🤖 Stiahnuť pre Android (.apk)</a>
+      <p id="iosHint" class="muted small-note" hidden>📲 Na iPhone: v Safari ťukni na <b>Zdieľať</b> ⬆️ a vyber <b>Pridať na plochu</b>.</p>
+    </div>
     <details class="rules">
       <summary>Pravidlá</summary>
       <div id="rulesText"></div>
