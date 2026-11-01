@@ -439,3 +439,13 @@ svg .anim.b-hub { animation-delay: var(--t, 0ms); }
 @keyframes plankDrop { 0% { scale: 1.6; opacity: 0; filter: drop-shadow(3px 6px 3px #0008); } 60% { opacity: 1; scale: .94; } 100% { scale: 1; filter: none; } }
 svg .anim.plank { animation-delay: calc(var(--t, 0ms) + 380ms + var(--i) * 85ms); }
 
+
+/* ===== verbovanie vojakov: pochod k posádke ===== */
+.march { animation: march 1.15s linear backwards; animation-delay: var(--t, 0ms); }
+@keyframes march { from { translate: var(--mx) var(--my); opacity: 0; } 12% { opacity: 1; } to { translate: 0 0; opacity: 1; } }
+.march .bob { animation: bob .23s ease-in-out 5 alternate; animation-delay: var(--t, 0ms); transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes bob { from { translate: 0 0; rotate: -3deg; } to { translate: 0 -2.2px; rotate: 3deg; } }
+.gbadge { animation: gbadge .5s 1.15s cubic-bezier(.3,1.8,.5,1) backwards; transform-box: fill-box; transform-origin: center; }
+svg .anim.gbadge { animation-delay: calc(var(--t, 0ms) + 1150ms); }
+@keyframes gbadge { from { scale: .3; } to { scale: 1; } }
+@media (prefers-reduced-motion: reduce) { .march, .march .bob, .gbadge { animation: none !important; } }

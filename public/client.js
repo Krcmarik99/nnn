@@ -56,7 +56,7 @@ const RULES = `
   </ul></li>
 <li>🌉 <b>Most</b> (2 drevo, kameň) – staviaš ho na odkryté <b>morské pole</b> vedľa svojej stavby alebo mosta. Od mosta môžeš stavať tábory a robiť výpravy na druhom brehu a most je súčasťou tvojej <b>cesty</b>. Body nedáva. Max. 4.</li>
 <li>⚓ <b>Prístav</b> (2 drevo, ruda, obilie) – na pobrežnej stavbe, 1 bod. Max. 2. S bankou meníš <b>2:1 surovinu poľa, na ktorom prístav stojí</b>. Hráči s prístavom si môžu posielať <b>námorné ponuky kedykoľvek</b>, aj mimo svojho ťahu. Ponuka platí jedno celé kolo a prijať ju môže len hráč s prístavom.</li>
-<li>⚔️ <b>Vojaci</b> (ruda, obilie): kto má najviac vojakov (aspoň 3), má <b>Najväčšie vojsko</b> a <b>+2 body</b>. Titul prevezme len hráč s väčším vojskom. Aspoň 2 vojaci chránia pred pirátmi. S aspoň 1 vojakom môžeš raz za ťah <b>vyhnať banditov</b> zo svojho poľa späť do hôr.</li>
+<li>⚔️ <b>Vojaci</b> (ruda, obilie): kto má najviac vojakov (aspoň 3), má <b>Najväčšie vojsko</b> a <b>+2 body</b>. Titul prevezme len hráč s väčším vojskom. Aspoň 2 vojaci chránia pred pirátmi. S aspoň 1 vojakom môžeš raz za ťah <b>vyhnať banditov</b> zo svojho poľa späť do hôr. Tvoji vojaci stoja ako posádka pri tvojej hlavnej stavbe (meste, inak tábore).</li>
 <li>🛤️ <b>Najdlhšia cesta</b>: tvoje stavby na susedných poliach tvoria cestu. Kto má najdlhšiu reťaz stavieb za sebou (aspoň 4), získa <b>+2 body</b>. Titul prevezme len hráč s dlhšou cestou.</li>
 <li>🎴 <b>Rozvojové karty</b> (obilie, ruda, soľ): kúpiš náhodnú kartu z balíčka. Zahrať ju môžeš po hode, najskôr v ďalšom ťahu, a len jednu za ťah. Karty: 🗺️ Mapa pokladu, 🛒 Kupec, 🌾 Bohatá úroda, 🔨 Stavitelia, 🏴‍☠️ Pašeráci, 📜 Kráľovská listina, 🧭 Lodný kompas.</li>
 <li>🧭 <b>Výprava</b> (drevo, obilie): odkry zahalené políčko vedľa svojej stavby. Ak je to pevnina, dostaneš 1 jej surovinu. Kto má najviac objavov (aspoň 3), je <b>Veľký objaviteľ</b> (+2 body).</li>
@@ -193,7 +193,7 @@ function applyState(next, prev, afterRoll) {
     else if (prev.bandits && S.bandits !== prev.bandits) FX.sound('bandits');
 
     if (S.log.at(-1) !== prev.log.at(-1) && / hrá kartu | kupuje rozvojovú kartu/.test(S.log.at(-1))) FX.sound('card');
-    if (S.log.at(-1) !== prev.log.at(-1) && /verbuje vojaka|vyháňajú banditov/.test(S.log.at(-1))) FX.sound('army');
+    if (S.log.at(-1) !== prev.log.at(-1) && /vyháňajú banditov/.test(S.log.at(-1))) FX.sound('army');
   }
   const myTurnNow = st => st.current === st.me && (st.phase === 'play' || st.phase === 'setup');
   if (myTurnNow(S) && !myTurnNow(prev)) setTimeout(() => FX.sound('turn'), afterRoll ? 600 : 0);
@@ -580,6 +580,49 @@ function banditSvg(x, y, leap, waiting) {
 // ---------- animácie stavania ----------
 const ANIM_MS = 1600;            // ako dlho sa nová stavba považuje za „čerstvú“
 let boardSnap = null;            // stav stavieb pri poslednom vykreslení
+let soldierSnap = null, armySnap = null;
+const MARCH_MS = 1150;           // ako dlho vojak pochoduje k posádke
+const MARCH_FROM = [-78, 30];    // odkiaľ prichádza (relatívne k posádke)
+
+// hlavná stavba hráča (mesto, inak prvý tábor) – pri nej stojí posádka
+function capitalHex(pid) {
+  const own = S.hexes.filter(h => h.building && h.building.owner === pid);
+  return own.find(h => h.building.type === 'town') || own[0] || null;
+}
+const GARRISON = [-27, -16];     // poloha posádky voči stredu poľa
+const G_SCALE = 0.92;
+
+function garrisonSvg(pos) {
+  if (typeof SPRITES === 'undefined' || !SPRITES) return '';
+  let out = '';
+  for (const p of S.players) {
+    const n = p.soldiers || 0;
+    const h = n && capitalHex(p.id);
+    if (!h) continue;
+    const [x, y] = pos(h);
+    const gx = x + GARRISON[0], gy = y + GARRISON[1];
+    const a = animOf('sold:' + p.id);
+    const fig = (dx, dy, cls = '') => `<g transform="translate(${dx},${dy})">${cls}${SPRITES.image('soldier', 0, 0, p.color)}${cls ? '</g></g>' : ''}</g>`;
+    let g = '';
+    // zadní vojaci najprv, predný (najnovší) posledný
+    if (n >= 3) g += fig(7, -3);
+    if (n >= 2) g += fig(-7, -3);
+    g += a ? fig(0, 0, `<g class="anim march" style="${a.style};--mx:${MARCH_FROM[0]}px;--my:${MARCH_FROM[1]}px"><g class="bob">`) : fig(0, 0);
+    if (n >= 2) {
+      g += `<g class="${a ? 'anim gbadge' : ''}"${a ? ` style="${a.style}"` : ''}><circle cx="9" cy="-26" r="6.2" fill="#0d1a2a" stroke="${p.color}" stroke-width="1.6"/>
+        <text x="9" y="-23.4" text-anchor="middle" font-size="7.5" font-weight="800" fill="#fff" font-family="Nunito, sans-serif">${n}</text></g>`;
+    }
+    out += `<g transform="translate(${gx},${gy}) scale(${G_SCALE})">${g}</g>`;
+    if (a) {
+      // príchod: zlatý kruh a +1 ⚔️
+      out += `<g class="anim" style="${a.style}"><circle class="ring" cx="${gx}" cy="${gy - 10}" r="14" fill="none" stroke="#ffd166" stroke-width="2.5"
+          style="animation-delay:calc(var(--t) + ${MARCH_MS}ms)"/>
+        <text class="floatvp" x="${gx}" y="${gy - 30}" text-anchor="middle" font-size="14" font-weight="800" fill="${p.color}" stroke="#0b1520"
+          stroke-width="3.5" paint-order="stroke" style="animation-delay:calc(var(--t) + ${MARCH_MS}ms)">+1 ⚔️</text></g>`;
+    }
+  }
+  return out;
+}
 let edgeSnap = null;             // spojnice (cesty) pri poslednom vykreslení
 const anims = {};                // kľúč → { kind, t0 }
 const pendingFx = [];            // časticové efekty, ktoré sa spustia po vykreslení mapy
@@ -599,6 +642,23 @@ function runPendingFx(pos) {
   if (typeof PFX === 'undefined') { pendingFx.length = 0; return; }
   while (pendingFx.length) {
     const e = pendingFx.shift();
+    if (e.kind === 'recruit') {
+      const h = capitalHex(e.pid);
+      if (!h) continue;
+      const [x, y] = pos(h);
+      const gx = x + GARRISON[0], gy = y + GARRISON[1];
+      // prach pod nohami počas pochodu
+      for (let i = 0; i <= 4; i++) {
+        const f = i / 4;
+        const q = svgToScreen(gx + MARCH_FROM[0] * G_SCALE * (1 - f), gy + MARCH_FROM[1] * G_SCALE * (1 - f));
+        if (q) PFX.dust(q.x, q.y, q.s * 0.35, f * MARCH_MS / 1000, '170,150,115');
+      }
+      const end = svgToScreen(gx, gy - 10);
+      if (end) PFX.sparks(end.x, end.y, end.s * 0.6, MARCH_MS / 1000);
+      if (e.title && end) setTimeout(() => floatText({ x: end.x, y: end.y - 30 }, '🎖️ Najväčšie vojsko!', '#ffd166'), MARCH_MS + 300);
+      FX.sound('march');
+      continue;
+    }
     if (e.kind === 'bandit') {
       const p = svgToScreen(e.x, e.y - 8), o = svgToScreen(e.ox, e.oy - 8);
       if (p) PFX.dust(p.x, p.y, p.s * 0.9, 0.6, '110,105,100');
@@ -655,6 +715,19 @@ function trackBuildAnims() {
     }
   }
   boardSnap = snap;
+  // nový vojak → pochod k posádke
+  const sold = {};
+  for (const p of S.players) sold[p.id] = p.soldiers || 0;
+  if (soldierSnap) {
+    for (const p of S.players) {
+      if ((sold[p.id] || 0) > (soldierSnap[p.id] || 0)) {
+        anims['sold:' + p.id] = { kind: 'march', t0: now };
+        pendingFx.push({ kind: 'recruit', pid: p.id, title: S.armyHolder === p.id && armySnap !== p.id });
+      }
+    }
+  }
+  soldierSnap = sold;
+  armySnap = S.armyHolder || null;
   for (const k in anims) if (now - anims[k].t0 > ANIM_MS) delete anims[k];
 }
 
@@ -898,7 +971,7 @@ function renderBoard() {
   const vb = svg.viewBox.baseVal;
   const cloudShadows = TEXTURES && TEXTURES.cshadow ? `<g clip-path="url(#oceanclip)" pointer-events="none">
     <rect class="cshadow" x="${vb.x - 320}" y="${vb.y - 320}" width="${vb.width + 640}" height="${vb.height + 640}" fill="url(#tx-cshadow)"/></g>` : '';
-  svg.innerHTML = TILE_DEFS + oceanSvg(vb.x, vb.y, vb.width, vb.height) + `<g>${seaTiles}</g><g class="shore">${shore}</g><g filter="url(#f-shadow)">${tiles}</g>${cloudShadows}<g pointer-events="none">${marks}${roadsSvg(pos)}${bridges}${pieces}${banditPiece}${fxLayer}</g>`;
+  svg.innerHTML = TILE_DEFS + oceanSvg(vb.x, vb.y, vb.width, vb.height) + `<g>${seaTiles}</g><g class="shore">${shore}</g><g filter="url(#f-shadow)">${tiles}</g>${cloudShadows}<g pointer-events="none">${marks}${roadsSvg(pos)}${bridges}${pieces}${garrisonSvg(pos)}${banditPiece}${fxLayer}</g>`;
   runPendingFx(pos);
   svg.querySelectorAll('.hex.valid').forEach(g => {
     g.onclick = () => {

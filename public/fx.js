@@ -109,6 +109,19 @@ const FX = (() => {
       noise(t, 0.5, { vol: 0.25, freq: 900, q: 0.8 });
       tone(520, t + 0.15, 0.3, { vol: 0.08, to: 780 });
     },
+    // pochod nového vojaka: kroky, bubon a na konci roh
+    march(t) {
+      for (let i = 0; i < 5; i++) {
+        const tt = t + i * 0.23;
+        noise(tt, 0.06, { vol: 0.28, freq: 260, kind: 'lowpass', q: 0.8 });
+        tone(70, tt, 0.08, { type: 'triangle', vol: 0.16 });
+        if (i % 2 === 0) noise(tt + 0.115, 0.05, { vol: 0.12, freq: 2600, q: 1.5 });
+      }
+      [[392, 0], [523, 0.16], [659, 0.32]].forEach(([f, d]) => {
+        tone(f, t + 1.15 + d, 0.28, { type: 'sawtooth', vol: 0.045 });
+        tone(f * 2, t + 1.15 + d, 0.28, { type: 'triangle', vol: 0.03 });
+      });
+    },
     army(t) {
       [0, 0.12, 0.24, 0.42].forEach((d, i) => { noise(t + d, 0.08, { vol: 0.35, freq: 180, kind: 'lowpass', q: 0.8 }); tone(i === 3 ? 98 : 82, t + d, 0.12, { type: 'triangle', vol: 0.18 }); });
       tone(523, t + 0.45, 0.25, { type: 'square', vol: 0.05 });
