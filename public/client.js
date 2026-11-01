@@ -120,6 +120,8 @@ function connect() {
       if (chatLines.length > 50) chatLines.shift();
       renderLog();
     } else if (m.t === 'rejoinFailed' || m.t === 'left') {
+      document.querySelectorAll('.victory, .cbox').forEach(e => e.remove());
+      if (gameMenu) gameMenu.hidden = true;
       saveSession(null);
       S = null;
       history.replaceState(null, '', location.pathname);
@@ -199,6 +201,46 @@ function applyState(next, prev, afterRoll) {
   if (myTurnNow(S) && !myTurnNow(prev)) setTimeout(() => FX.sound('turn'), afterRoll ? 600 : 0);
 }
 
+// ---------- menu hry: odísť / ukončiť ----------
+function confirmBox(title, text, okLabel, danger) {
+  return new Promise(resolve => {
+    document.querySelectorAll('.cbox').forEach(e => e.remove());
+    const el = document.createElement('div');
+    el.className = 'cbox';
+    el.innerHTML = `<div class="cbox-card"><h3>${title}</h3><p>${text}</p>
+      <div class="row"><button class="ghost" data-a="0">Zrušiť</button><button class="${danger ? 'danger' : 'primary'}" data-a="1">${okLabel}</button></div></div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', e => {
+      const b = e.target.closest('[data-a]');
+      if (!b && e.target !== el) return;
+      el.remove();
+      resolve(!!b && b.dataset.a === '1');
+    });
+  });
+}
+const gameMenu = $('gameMenu');
+$('btnMenu').onclick = e => {
+  e.stopPropagation();
+  const host = S && S.host === S.me;
+  const running = S && (S.phase === 'setup' || S.phase === 'play');
+  $('mEnd').hidden = !(host && running);
+  $('mLeave').textContent = running ? '🚪 Odísť z hry' : '🚪 Späť na úvod';
+  gameMenu.hidden = !gameMenu.hidden;
+};
+document.addEventListener('click', e => { if (!gameMenu.hidden && !gameMenu.contains(e.target)) gameMenu.hidden = true; });
+$('mClose').onclick = () => { gameMenu.hidden = true; };
+$('mLeave').onclick = async () => {
+  gameMenu.hidden = true;
+  const running = S && (S.phase === 'setup' || S.phase === 'play');
+  if (running && !(await confirmBox('Odísť z hry?', 'Tvoje miesto prevezme <b>AI hráč</b> a ostatní budú hrať ďalej. Do tejto hry sa už nevrátiš.', '🚪 Odísť', true))) return;
+  send({ t: 'leave' });
+};
+$('mEnd').onclick = async () => {
+  gameMenu.hidden = true;
+  if (!(await confirmBox('Ukončiť hru pre všetkých?', 'Hra sa skončí pre všetkých hráčov. Vyhrá hráč, ktorý má práve <b>najviac bodov</b>.', '⏹ Ukončiť hru', true))) return;
+  send({ t: 'endGame' });
+};
+
 const muteBtn = $('btnMute');
 const syncMute = () => { muteBtn.textContent = FX.isMuted() ? '🔇' : '🔊'; muteBtn.title = FX.isMuted() ? 'Zapnúť zvuk' : 'Vypnúť zvuk'; };
 muteBtn.onclick = () => { FX.setMuted(!FX.isMuted()); syncMute(); if (!FX.isMuted()) FX.sound('turn'); };
@@ -266,6 +308,8 @@ function render() {
 
 function renderLobby() {
   prevMyRes = null;
+  boardSnap = null; edgeSnap = null; soldierSnap = null; armySnap = null; lastBandits = undefined;
+  document.querySelectorAll('.victory, .cardshow, .banditAlarm').forEach(e => e.remove());
   show('lobby');
   $('lobbyCode').textContent = S.code;
   $('shareLink').value = `${location.origin}${location.pathname}?party=${S.code}`;
@@ -1127,9 +1171,10 @@ function celebrate() {
   const el = document.createElement('div');
   el.className = 'victory';
   el.innerHTML = `<div class="v-rays"></div><div class="v-card">
-      <div class="v-trophy">🏆</div>
-      <div class="v-title">${meWon ? 'Víťazstvo!' : 'Koniec hry'}</div>
-      <div class="v-sub">${meWon ? 'Vyhral(a) si' : `<b style="color:${win.color}">${esc(win.name)}</b> vyhráva`} s ${win.vp} bodmi</div>
+      <div class="v-trophy">${S.aborted ? '🏁' : '🏆'}</div>
+      <div class="v-title">${S.aborted ? 'Hra ukončená' : meWon ? 'Víťazstvo!' : 'Koniec hry'}</div>
+      <div class="v-sub">${S.aborted ? 'Zakladateľ ukončil hru · najviac bodov má ' + `<b style="color:${win.color}">${esc(win.name)}</b>`
+        : meWon ? 'Vyhral(a) si' : `<b style="color:${win.color}">${esc(win.name)}</b> vyhráva`} ${S.aborted ? `(${win.vp} b.)` : `s ${win.vp} bodmi`}</div>
       <ol class="v-rank">${ranks.map((p, i) => `<li style="--d:${700 + i * 160}ms">
         <span class="m">${medal[i] || (i + 1) + '.'}</span><span class="dot" style="background:${p.color}"></span>
         <span class="n">${esc(p.name)}${p.id === S.me ? ' (ty)' : ''}</span><b>${p.vp} b.</b></li>`).join('')}</ol>
@@ -1137,7 +1182,7 @@ function celebrate() {
   document.body.appendChild(el);
   const close = () => { el.classList.add('out'); setTimeout(() => el.remove(), 400); };
   $('vClose').onclick = close;
-  if (typeof PFX === 'undefined' || reducedMotion()) return;
+  if (typeof PFX === 'undefined' || reducedMotion() || S.aborted) return;
   const colors = [...S.players.map(p => p.color), '#ffd166', '#ffffff'];
   PFX.confetti(170, colors);
   setTimeout(() => document.body.contains(el) && PFX.confetti(110, colors), 2600);
@@ -1329,9 +1374,13 @@ function animateTrade(t) {
 function renderActions() {
   const p = $('actionsPanel');
   if (S.phase === 'ended') {
-    p.innerHTML = `<div class="banner">🏆 ${esc(pl(S.winner).name)} vyhral(a)!</div>
+    const host = S.host === S.me;
+    p.innerHTML = `<div class="banner">${S.aborted ? '⏹ Hra ukončená · najviac bodov: ' : '🏆 '}${esc(pl(S.winner).name)}${S.aborted ? '' : ' vyhral(a)!'}</div>
+      ${host ? '<button id="btnRematch" class="primary" style="width:100%;margin-top:8px">🔁 Nová hra s rovnakou partiou</button>'
+        : '<p class="muted" style="margin:8px 0 0">Zakladateľ môže spustiť novú hru s rovnakou partiou.</p>'}
       <button id="btnHome" style="width:100%;margin-top:8px">Späť na úvod</button>`;
     $('btnHome').onclick = () => send({ t: 'leave' });
+    if ($('btnRematch')) $('btnRematch').onclick = () => send({ t: 'rematch' });
     return;
   }
   if (!myTurn() || S.phase === 'setup') {

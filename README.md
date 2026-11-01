@@ -26,6 +26,12 @@ Každý bot má vlastnú obtiažnosť (vyberá sa pri pridaní, dá sa zmeniť v
 - 😈 **Ťažká** – lepšie vyberá políčka a ciele, uprednostňuje mestá a hodnotné zákazky,
   nevynechá víťazný ťah, nestavia pod banditov a posiela ich na polia lídra.
 
+**Odísť / ukončiť hru:** v menu **☰** vpravo hore pri mape:
+- **🚪 Odísť z hry** – aj počas rozohranej hry; tvoje miesto prevezme AI hráč a ostatní hrajú ďalej.
+  Ak odíde zakladateľ, zakladateľom sa stane iný hráč.
+- **⏹ Ukončiť hru pre všetkých** – len zakladateľ; vyhráva hráč s najviac bodmi.
+- Po skončení hry môže zakladateľ spustiť **🔁 Novú hru s rovnakou partiou**.
+
 Pri obnovení stránky alebo výpadku spojenia sa hráč automaticky vráti do svojej hry.
 Ak je hráč na ťahu odpojený, ostatní môžu jeho ťah preskočiť.
 

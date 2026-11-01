@@ -187,6 +187,19 @@ function botStep(room) {
   broadcast(room);
 }
 
+// odpojí všetky okná hráča, zruší jeho prihlásenie a odovzdá zakladateľa
+function dropPlayerConnection(room, pid) {
+  for (const [t, p] of room.tokens) if (p === pid) room.tokens.delete(t);
+  const set = room.sockets.get(pid);
+  room.sockets.delete(pid);
+  if (set) for (const s of set) { s.room = null; send(s, { t: 'left' }); }
+  if (room.host === pid) {
+    const next = room.game.players.find(p => !p.bot && p.id !== pid && connected(room, p.id))
+      || room.game.players.find(p => !p.bot && p.id !== pid);
+    if (next) room.host = next.id;
+  }
+}
+
 function attach(ws, room, pid, token) {
   if (!room.sockets.has(pid)) room.sockets.set(pid, new Set());
   room.sockets.get(pid).add(ws);
@@ -272,7 +285,47 @@ function handle(ws, msg) {
       g.forceSkip();
       return broadcast(room);
     }
+    case 'endGame': {
+      if (ws.pid !== room.host) throw new GameError('Hru môže ukončiť len zakladateľ párty.');
+      g.abort(g.player(ws.pid).name);
+      return broadcast(room);
+    }
+    case 'rematch': {
+      if (ws.pid !== room.host) throw new GameError('Novú hru môže spustiť len zakladateľ párty.');
+      if (g.phase !== 'ended') throw new GameError('Hra ešte neskončila.');
+      // nová hra s rovnakou partiou – hráči (aj AI) sa vrátia do lobby, tokeny ostanú platné
+      const fresh = new Game();
+      const remap = new Map();
+      for (const p of g.players) remap.set(p.id, fresh.addPlayer(p.name, { bot: p.bot, level: p.level }));
+      for (const [t, pid] of room.tokens) remap.has(pid) ? room.tokens.set(t, remap.get(pid)) : room.tokens.delete(t);
+      const sockets = new Map();
+      for (const [pid, set] of room.sockets) {
+        if (!remap.has(pid)) continue;
+        for (const s of set) s.pid = remap.get(pid);
+        sockets.set(remap.get(pid), set);
+      }
+      room.sockets = sockets;
+      room.host = remap.get(room.host);
+      room.game = fresh;
+      room.botMem = {};
+      room.seenRoll = null;
+      fresh.addLog('🔁 Nová hra s rovnakou partiou.');
+      return broadcast(room);
+    }
     case 'leave': {
+      if (g.phase === 'setup' || g.phase === 'play') {
+        // odchod z rozohranej hry: miesto prevezme AI, hráč sa už nevráti
+        g.replaceWithBot(ws.pid);
+        dropPlayerConnection(room, ws.pid);
+        if (!g.players.some(p => !p.bot)) { deleteRoom(room.code); return; }
+        return broadcast(room);
+      }
+      if (g.phase === 'ended') {
+        dropPlayerConnection(room, ws.pid);
+        if (!g.players.some(p => !p.bot && connected(room, p.id))) deleteRoom(room.code);
+        else broadcast(room);
+        return;
+      }
       if (g.phase === 'lobby') {
         g.removePlayer(ws.pid);
         for (const [t, p] of room.tokens) if (p === ws.pid) room.tokens.delete(t);
